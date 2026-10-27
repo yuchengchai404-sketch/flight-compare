@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {providerProgress,restoreStep} from '../lib/workflow.mjs';
+const c={outbound:[{source:'google'},{source:'ctrip'}],return:[],roundtrip:[],pending:[{source:'ctrip'}]};
+assert.equal(providerProgress(c,'google',true),'去程 1 条 · 回程 0 条');
+assert.equal(providerProgress(c,'ctrip',true),'去程 1 条 · 回程 0 条 · 待核验 1 条');
+assert.equal(providerProgress(c,'ly',false),'去程 0 条');
+assert.equal(restoreStep('{bad','q'),1);
+assert.equal(restoreStep(JSON.stringify({queryId:'other',step:3}),'q'),1);
+assert.equal(restoreStep(JSON.stringify({queryId:'q',step:3}),'q'),3);
+assert.equal(restoreStep(JSON.stringify({queryId:'q',step:99}),'q'),1);
+console.log('Workflow checks passed: scoped step restore and eligible direction counts.');

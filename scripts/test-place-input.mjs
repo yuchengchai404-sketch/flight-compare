@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {resolvePlace,placeHint} from '../lib/place-input.mjs';
+import {normalizeQuery} from '../lib/flight-query.mjs';
+for(const [input,code] of [['上海','SHA'],['北京市','BJS'],['东京（全部机场）','TYO'],['大阪','OSA'],['首尔','SEL'],['巴黎','PAR'],['纽约','NYC'],['曼谷','BKK'],['伦敦','LON'],['上海浦东国际机场','PVG'],['东京成田机场','NRT'],[' pvg ','PVG']]) assert.equal(resolvePlace(input),code);
+assert.throws(()=>resolvePlace('东'),/未识别/);
+assert.throws(()=>resolvePlace('上海虹桥'),/整个城市/);
+assert.throws(()=>resolvePlace('曼谷素万那普'),/整个城市/);
+assert.match(placeHint('上海'),/全部机场/);
+const q={from:'SHA',to:'OSA',out:'2027-03-02',back:'2027-03-09',adults:1,cabin:'economy'};
+assert.equal(normalizeQuery({...q,from:resolvePlace('上海'),to:resolvePlace('大阪')}).id,normalizeQuery(q).id);
+console.log('PASS names, airport scope ambiguity, codes and stable query identity');

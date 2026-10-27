@@ -1,0 +1,9 @@
+import assert from 'node:assert/strict';
+import {scheduleComparisons,fareTerms} from '../lib/schedule-compare.mjs';
+const row=(source,price,patch={})=>({id:source,source,normalized:{eligible:true,currency:'CNY',taxIncluded:true,queryId:'q',tripType:'oneway',direction:'outbound',passengers:1,price,totalPrice:price,legs:[{from:'PVG',to:'NRT',date:'2026-12-31',departureTime:'15:00',arrivalTime:'18:40'}],...patch}});
+let groups=scheduleComparisons([row('google',1902),row('ctrip',1890),row('ly',1910)]);assert.equal(groups.length,1);assert.equal(groups[0].spread,20);assert.equal(groups[0].minimum,1890);
+for(const patch of [{eligible:false},{taxIncluded:false},{taxIncluded:null},{currency:'JPY'},{queryId:'other'},{passengers:2},{tripType:'roundtrip'},{direction:'return'},{legs:[{from:'SHA',to:'NRT',date:'2026-12-31',departureTime:'15:00',arrivalTime:'18:40'}]},{legs:[{from:'PVG',to:'NRT',date:'2026-12-31',departureTime:'15:00',arrivalTime:'18:40',arrivalDayOffset:1}]}])assert.equal(scheduleComparisons([row('google',1902),row('ly',1000,patch)]).length,0);
+assert.equal(scheduleComparisons([row('google',1902),{...row('google',1800),id:'g2'}]).length,0);
+groups=scheduleComparisons([row('google',1902),row('ctrip',1890),{...row('ctrip',2000),id:'codeshare'}]);assert.equal(groups[0].offers.length,3,'preserve multiple candidate products instead of claiming same flight');assert.equal(groups[0].spread,12,'spread compares lowest displayed candidate per platform');
+assert.deepEqual(fareTerms('经济舱\n托运行李1*23KG\n退票¥1000起,改期¥500起\n¥3149'),{baggage:'托运行李1*23KG',rules:'退票¥1000起,改期¥500起'});assert.match(fareTerms('').baggage,/未采集/);
+console.log('PASS schedule candidates: query, directions, passenger, airport, day offsets and tax scope isolation; multiple products retained; raw fare conditions preserved.');

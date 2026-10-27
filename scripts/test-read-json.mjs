@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {readJson} from '../lib/read-json.mjs';
+assert.deepEqual(await readJson('/test',{fetcher:async()=>({ok:true,json:async()=>({captures:[1]})})}),{captures:[1]});
+await assert.rejects(readJson('/test',{fetcher:async()=>({ok:false,json:async()=>({error:'拒绝读取'})})}),/拒绝读取/);
+let signal;
+await assert.rejects(readJson('/test',{timeoutMs:15,fetcher:async(_,options)=>{signal=options.signal;return new Promise(()=>{});}}),/读取报价超时/);
+assert.equal(signal.aborted,true);
+await assert.rejects(readJson('/test',{timeoutMs:15,fetcher:async()=>({ok:true,json:()=>new Promise(()=>{})})}),/读取报价超时/);
+console.log('PASS success, server errors, stalled connection and stalled response body timeout');
+let sent;
+await readJson('/refresh',{request:{method:'POST',headers:{'Content-Type':'application/json'},body:'{"source":"fliggy"}'},fetcher:async(_,options)=>{sent=options;return {ok:true,json:async()=>({snapshot:{}})};}});
+assert.equal(sent.method,'POST');assert.equal(sent.body,'{"source":"fliggy"}');assert.equal(sent.headers['Content-Type'],'application/json');assert.ok(sent.signal instanceof AbortSignal);

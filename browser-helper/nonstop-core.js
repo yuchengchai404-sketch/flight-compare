@@ -1,0 +1,1 @@
+(()=>{globalThis.flightNonstop={only(text,tripType='oneway'){text=String(text||'');if(/中转|转机|经停|经停?\s*[1-9]|\b[1-9]\s*(?:stops?|connections?)\b/i.test(text))return false;const marks=text.match(/直飞|直达|non[ -]?stop|\b0\s*stops?\b/gi)||[];return marks.length>=(tripType==='roundtrip'?2:1);}};})();

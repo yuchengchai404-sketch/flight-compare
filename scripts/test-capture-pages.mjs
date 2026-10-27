@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {capturePageQuery,capturePage,readCapturePages} from '../lib/capture-pages.mjs';
+const db=new DatabaseSync(':memory:');
+db.exec('CREATE TABLE fare_snapshots(id TEXT PRIMARY KEY,payload TEXT,updated_at TEXT)');
+const add=db.prepare('INSERT INTO fare_snapshots VALUES(?,?,?)');
+for(let i=0;i<1300;i++)add.run('capture:'+String(i).padStart(16,'0'),JSON.stringify({date:'test',status:i<100?'archived':'draft',source:i<110?'google':i<120?'ctrip':'ly'}),i<120?'2026-10-20T00:00:00.000Z':'2026-10-21T00:00:00.000Z');
+add.run('capture:otherquery0000000',JSON.stringify({date:'other',status:'draft'}),'2026-10-22T00:00:00.000Z');
+let calls=0;
+const read=async cursor=>{
+  calls++;const q=capturePageQuery('test','',cursor), page=capturePage(db.prepare(q.sql).all(...q.values));
+  return {captures:page.rows.map(r=>({...JSON.parse(r.payload),storageId:r.id})),nextCursor:page.nextCursor};
+};
+const result=await readCapturePages(read);
+assert.equal(calls,6);assert.equal(result.captures.length,1200);
+assert.equal(result.captures.filter(r=>r.source==='google').length,10);
+assert.equal(result.captures.filter(r=>r.source==='ctrip').length,10);
+assert.equal(new Set(result.captures.map(r=>r.storageId)).size,1200);
+calls=0;assert.equal(await readCapturePages(read,()=>false),null);assert.equal(calls,1);
+await assert.rejects(readCapturePages(async()=>({captures:[],nextCursor:'same'})),/分页/);
+await assert.rejects(readCapturePages(async()=>{throw Error('offline');}),/offline/);
+for(const cursor of ['x','[]','[1,2]','["2026-10-20","x"]'])assert.throws(()=>capturePageQuery('test','',cursor),/分页/);
+db.close();console.log('capture pagination: 1200 records, source retention, tied timestamps, archive/query isolation, cancellation and errors passed');
