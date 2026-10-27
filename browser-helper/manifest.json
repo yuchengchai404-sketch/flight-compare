@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
   "name": "机票比价采集助手",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "description": "按自定义条件查询官方机票页面，读取可见报价并回传个人比价平台。",
-  "permissions": ["storage", "activeTab"],
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
   "host_permissions": [
     "https://flight-compare.example.com/*",
     "https://www.google.com/travel/flights*",
@@ -12,18 +15,48 @@
     "https://www.ly.com/iflight/*",
     "https://flight.ly.com/intl/*",
     "https://flight.ly.com/international/*",
-    "https://flight.ly.com/search/*"
+    "https://flight.ly.com/search/*",
+    "https://www.ly.com/flights/*"
   ],
-  "background": { "service_worker": "background.js" },
-  "action": { "default_title": "读取报价并回传平台", "default_popup": "popup.html" },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "读取报价并回传平台",
+    "default_popup": "popup.html"
+  },
   "content_scripts": [
     {
-      "matches": ["https://flight-compare.example.com/*"],
-      "js": ["query-core.js", "bridge.js"]
+      "matches": [
+        "https://flight-compare.example.com/*"
+      ],
+      "js": [
+        "query-core.js",
+        "bridge.js"
+      ]
     },
     {
-      "matches": ["https://www.google.com/travel/flights*", "https://flights.ctrip.com/online/*", "https://flights.ctrip.com/international/*", "https://www.ly.com/iflight/*", "https://flight.ly.com/intl/*", "https://flight.ly.com/international/*", "https://flight.ly.com/search/*"],
-      "js": ["query-core.js", "google-search-core.js", "provider-search-core.js", "google-adapter.js", "ctrip-adapter.js", "ly-adapter.js", "nonstop-core.js", "source.js"]
+      "matches": [
+        "https://www.google.com/travel/flights*",
+        "https://flights.ctrip.com/online/*",
+        "https://flights.ctrip.com/international/*",
+        "https://www.ly.com/iflight/*",
+        "https://flight.ly.com/intl/*",
+        "https://flight.ly.com/international/*",
+        "https://flight.ly.com/search/*",
+        "https://www.ly.com/flights/*"
+      ],
+      "js": [
+        "query-core.js",
+        "google-search-core.js",
+        "provider-search-core.js",
+        "google-adapter.js",
+        "ctrip-adapter.js",
+        "ly-adapter.js",
+        "ly-domestic-adapter.js",
+        "nonstop-core.js",
+        "source.js"
+      ]
     }
   ]
 }

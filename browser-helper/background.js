@@ -17,7 +17,7 @@ function officialUrl(value) {
   let keep = [];
   if (u.hostname === 'www.google.com' && /^\/travel\/flights(?:\/|$)/.test(u.pathname)) keep = ['tfs', 'tfu', 'hl', 'curr', 'q'];
   else if (u.hostname === 'flights.ctrip.com' && /^\/(?:online|international)(?:\/|$)/.test(u.pathname)) keep = ['dcity', 'acity', 'ddate', 'rdate', 'depdate', 'departdate', 'returndate', 'triptype', 'adult', 'adults', 'child', 'infant', 'cabin'];
-  else if ((u.hostname === 'www.ly.com' && /^\/iflight(?:\/|$)/.test(u.pathname)) || (u.hostname === 'flight.ly.com' && /^\/(?:intl|international|search)(?:\/|$)/.test(u.pathname))) keep = ['para', 'departureCity', 'arrivalCity', 'from', 'to', 'date', 'returnDate', 'tripType', 'adults', 'cabin'];
+  else if ((u.hostname === 'www.ly.com' && /^\/(?:iflight|flights)(?:\/|$)/.test(u.pathname)) || (u.hostname === 'flight.ly.com' && /^\/(?:intl|international|search)(?:\/|$)/.test(u.pathname))) keep = ['fromairport','toairport','childticket','p','para', 'departureCity', 'arrivalCity', 'from', 'to', 'date', 'returnDate', 'tripType', 'adults', 'cabin'];
   else throw Error('当前页面不是支持的官方机票查询页');
   for (const key of Array.from(u.searchParams.keys())) if (!keep.includes(key)) u.searchParams.delete(key);
   u.hash = '';

@@ -84,20 +84,27 @@
     const times=[departure,arrival].map(value=>(value.match(/\b(?:[01]?\d|2[0-3]):[0-5]\d(?:\s*\+\s*[1-3])?/g)||[]));
     if(times.some(value=>value.length!==1))return null;
     const transfer=content('.flight-detail .transfer-info-group',main).join(' ');
-    const stops=/中转|转机|经停/.test(transfer)?'中转':(/直飞|直达/.test(core.text(main))||nonstopSelected())?'直飞':'';
+    const domestic=main.parentElement?.classList?.contains('domestic');
+    // Domestic UI has a combined "直飞/经停" checkbox, never use it as
+    // nonstop evidence. Require the single-flight arrow and empty stop lane.
+    const domesticDirect=domestic&&core.all('.flight-detail .transfer-info-group',main).length===1&&core.all('i.arrow-oneway',main).length===1&&!/中转|转机|经停|转\d+次/.test(core.text(main))&&content('.plane .plane-No',main).length===1;
+    const stops=/中转|转机|经停/.test(transfer)?'中转':(/直飞|直达/.test(core.text(main))||nonstopSelected()||domesticDirect)?'直飞':'';
     return [...content('.flight-row .flight-airline .airline-name',main),...content('.plane .plane-No',main),airports.join(' → '),times.map(value=>value[0]).join(' → '),stops].filter(Boolean).join('\n');
   }
   function fareAmount(value){const prices=Array.from(value.matchAll(/(?:CNY|RMB|人民币|¥|￥)\s*[0-9]+(?:[,，][0-9]{3})*(?:\.[0-9]{1,2})?/g),match=>match[0]);return prices.length===1?prices[0]+(/起/.test(value)?'起':''):null;}
   function cardFor(main,product=null){
     const base=flightText(main);if(!base)return null;
-    const priceText=core.text(one(product?'.seat-operate .operate .seat-price .price-box > div.price.price-b':'.flight-operate .flight-price',product||main));
+    const domestic=main.parentElement?.classList?.contains('domestic');
+    const selector=domestic?(product?'.domestic-cabin-price > .price > span.price':'.domestic-flight-price > .price > span.price'):(product?'.seat-operate .operate .seat-price .price-box > div.price.price-b':'.flight-operate .flight-price');
+    const priceText=core.text(one(selector,product||main));
     const price=fareAmount(priceText);if(!price)return null;
     const raw=[nonstopSelected()?'官网直飞筛选已选中':'',core.text(main),product?core.text(product):''].filter(Boolean).join('\n').slice(0,2500);
-    const cabinEvidence=product?core.text(one('.seat-type',product)):'';
-    const scope=cabinScope(cabinEvidence),observedCabin=scope.length===1?scope[0]:null;
+    const cabinEvidence=product?core.text(one(domestic?'.domestic-seat-type .domestic-cabin-item':'.seat-type',product)):'';
+    const scope=cabinScope(domestic?cabinEvidence.replace(/[\d.]+折|全价/g,''):cabinEvidence),observedCabin=scope.length===1?scope[0]:null;
     const captureIssues=[];
     if(!observedCabin)captureIssues.push('携程当前报价尚未明确显示唯一的具体舱位');
     if(product&&/(?:限.{0,24}(?:周岁|年龄|乘客|会员|新客)|仅限|券后|需领券|新客专享|会员专享|首单专享)/.test(core.text(product)))captureIssues.push('该票价包含年龄、身份或优惠资格限制，尚未核验是否适用');
+    if(product&&/(?:多人特惠|学生|青年|老人|长者|\+\s*[¥￥]\s*\d+.*服务包)/.test(core.text(product)))captureIssues.push('该票价有身份、人数限制或额外服务包费用，暂不参与比价');
     const taxes=content('.flight-operate .flight-price .tip',main).join(' ');
     const negativeTax=product?core.text(product).match(/(?:不含|未含|不包含|未包含|不包括).{0,6}税(?:费)?/)?.[0]:null;
     return {innerText:[base,cabinEvidence,price,negativeTax||taxes].filter(Boolean).join('\n'),rawText:raw,observedCabin,cabinEvidence:observedCabin?cabinEvidence:null,captureIssues,

@@ -36,6 +36,7 @@ const mock={...core,
   blocked(){if(blocked)throw Error('人工安全验证');},wait:async()=>{},
   all(selector,root){
     if(selector==='.flight-item')return flights;
+    if(root?.domesticMap?.[selector])return root.domesticMap[selector];
     if(root?.kind==='flight'&&selector==='.flight-box')return [root.main];
     if(root?.kind==='flight'&&selector==='.flight-seats > .seat-row.seat-row-v3')return root.expanded?root.products:[];
     if(root?.kind==='main'){
@@ -145,4 +146,14 @@ fields.date.value='2026-10-10';dayDisabled=true;
 await assert.rejects(context.flightCtripAdapter.fillSearch({...q,direction:'outbound'}),/不可选/);
 assert.equal(clickedDates.length,2);dayDisabled=false;
 blocked=true;assert.throws(()=>context.flightCtripAdapter.cards(),/人工安全验证/);
+
+actualUrl='https://flights.ctrip.com/online/list/oneway-sha-bjs?depdate=2027-01-01&cabin=y_s&adult=1&child=0&infant=0';
+pathname='/online/list/oneway-sha-bjs';blocked=false;
+flights=[flightFixture({expanded:true,prices:[470]})];
+const domesticItem=flights[0];domesticItem.classList={contains:v=>v==='domestic'};
+domesticItem.main.domesticMap={'.flight-detail .arrive-box .airport .name':[textNode('大兴国际机场')],'.flight-detail .transfer-info-group':[textNode('')],'i.arrow-oneway':[textNode('')]};
+domesticItem.products[0].domesticMap={'.domestic-cabin-price > .price > span.price':[textNode('¥470')],'.domestic-seat-type .domestic-cabin-item':[textNode('经济舱3.2折')]};
+const domesticCard=context.flightCtripAdapter.cards()[0];assert.equal(domesticCard.observedCabin,'economy');assert.match(domesticCard.innerText,/直飞/);assert.match(domesticCard.innerText,/¥470/);
+domesticItem.main.innerText+=' 经停';assert.doesNotMatch(context.flightCtripAdapter.cards()[0].innerText,/直飞/);
+
 console.log('PASS: Ctrip controls/calendar and observed result/product fixtures; exact fare extraction, qualification guards, bounded progressive loading, accordion snapshots, captcha/navigation abort, no booking clicks. Not a live extension import.');
