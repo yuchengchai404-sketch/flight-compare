@@ -3,7 +3,7 @@
   // Root field 19=2 means one-way; root field 2 remains 2.
   const template = 'CBwQAhooEgoyMDI2LTEyLTMxagwIAxIIL20vMDZ3amZyDAgDEggvbS8wN2Rma0ABSAFwAYIBCwj___________8BmAEC';
   // BJS/SEL verified by selecting 中国北京市 and 韩国首尔 on 2026-10-15.
-  const observedLocations = { SHA: '/m/06wjf', TYO: '/m/07dfk', OSA: '/m/0dqyw', BJS: '/m/01914', SEL: '/m/0hsqf', BKK: '/m/0fn2g', LON: '/m/04jpl', PAR: '/m/05qtj', NYC: '/m/02_286' };
+  const observedLocations = { CAN: '/m/0393g', CTU: '/m/016v46', SHA: '/m/06wjf', TYO: '/m/07dfk', OSA: '/m/0dqyw', BJS: '/m/01914', SEL: '/m/0hsqf', BKK: '/m/0fn2g', LON: '/m/04jpl', PAR: '/m/05qtj', NYC: '/m/02_286' };
   // All four values verified through the Google cabin selector on 2026-10-15.
   const observedCabins = { economy: 1, premium_economy: 2, business: 3, first: 4 };
   const textEncoder = new TextEncoder(), textDecoder = new TextDecoder();
@@ -52,14 +52,14 @@
   function encode(bytes) { return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, ''); }
   function location(code) {
     // Airport type 1 + field 2 IATA verified by the actual PVG combobox URL.
-    return observedLocations[code] ? [...scalar(1, 3), ...string(2, observedLocations[code])]
-      : [...scalar(1, 1), ...string(2, code)];
+    return observedLocations[code] ? [...scalar(1, ['CAN','CTU'].includes(code)?2:3), ...string(2, observedLocations[code])]
+      : [...scalar(1, 1), ...string(2, core().cities[code]?.airports.length===1?core().cities[code].airports[0]:code)];
   }
   function searchInfo(input, direction = input?.direction || 'outbound') {
     const q = core().normalizeQuery(input), leg = core().legQuery(q, direction);
     const url = new URL('https://www.google.com/travel/flights');
     url.searchParams.set('hl', 'zh-CN'); url.searchParams.set('curr', 'CNY');
-    const encodedLocation = code => Boolean(observedLocations[code] || (core().airports[code] && !core().cities[code]));
+    const encodedLocation = code => Boolean(observedLocations[code] || (core().cities[code]?.airports.length===1 || core().airports[code] && !core().cities[code]));
     if (encodedLocation(leg.from) && encodedLocation(leg.to) && observedCabins[leg.cabin]) {
       url.pathname += '/search';
       const trip = [...string(2, leg.date), ...data(13, location(leg.from)), ...data(14, location(leg.to))];
@@ -83,7 +83,7 @@
     if (!bytes) return;
     const parts = fields(bytes), kind = one(parts, 1, 0)?.value, value = textDecoder.decode(one(parts, 2, 2)?.data || []);
     if (kind === 1 && /^[A-Z]{3}$/.test(value)) return value;
-    if (kind !== 3) return;
+    if (![2,3].includes(kind)) return;
     return Object.keys(observedLocations).find(k => observedLocations[k] === value);
   }
   function inspect(rawUrl) {

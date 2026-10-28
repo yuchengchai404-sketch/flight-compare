@@ -98,9 +98,17 @@
     const selector=domestic?(product?'.domestic-cabin-price > .price > span.price':'.domestic-flight-price > .price > span.price'):(product?'.seat-operate .operate .seat-price .price-box > div.price.price-b':'.flight-operate .flight-price');
     const priceText=core.text(one(selector,product||main));
     const price=fareAmount(priceText);if(!price)return null;
-    const raw=[nonstopSelected()?'官网直飞筛选已选中':'',core.text(main),product?core.text(product):''].filter(Boolean).join('\n').slice(0,2500);
-    const cabinEvidence=product?core.text(one(domestic?'.domestic-seat-type .domestic-cabin-item':'.seat-type',product)):'';
-    const scope=cabinScope(domestic?cabinEvidence.replace(/[\d.]+折|全价/g,''):cabinEvidence),observedCabin=scope.length===1?scope[0]:null;
+    let raw=[nonstopSelected()?'官网直飞筛选已选中':'',core.text(main),product?core.text(product):''].filter(Boolean).join('\n').slice(0,2500);
+    let cabinEvidence=product?core.text(one(domestic?'.domestic-seat-type .domestic-cabin-item':'.seat-type',product)):'';
+    let scope=cabinScope(domestic?cabinEvidence.replace(/[\d.]+折|全价/g,''):cabinEvidence);
+    // Branded domestic fares (e.g. 超值折扣) inherit only the same flight's
+    // visible, uniquely selected cabin tab, never a broad search preference.
+    if(domestic&&product&&!scope.length&&/^(超值折扣|特惠折扣)[\d.]*折?$/.test(cabinEvidence.trim())){
+      const tab=core.text(one('.cabin-tabs > .tab.tab-active',main.parentElement));
+      const tabScope=cabinScope(tab.replace(/\s*[¥￥][\d,.]+起?\s*$/,''));
+      if(tabScope.length===1){scope=tabScope;cabinEvidence=tab.replace(/\s*[¥￥][\d,.]+起?\s*$/,'').trim();raw+='\n当前航班所选舱位：'+tab;}
+    }
+    const observedCabin=scope.length===1?scope[0]:null;
     const captureIssues=[];
     if(!observedCabin)captureIssues.push('携程当前报价尚未明确显示唯一的具体舱位');
     if(product&&/(?:限.{0,24}(?:周岁|年龄|乘客|会员|新客)|仅限|券后|需领券|新客专享|会员专享|首单专享)/.test(core.text(product)))captureIssues.push('该票价包含年龄、身份或优惠资格限制，尚未核验是否适用');
@@ -122,8 +130,8 @@
     const initialUrl=queryUrl();
     const verifyPage=()=>{guard();if(queryUrl()!==initialUrl)throw Error('携程页面在读取期间发生跳转，已停止。');const meta=core.inspectCtripUrl(location.href);if(meta){if(!meta.cabinScope.includes(q.cabin))throw Error('携程查询舱位范围已改变。');core.verify(q,{...meta,cabin:q.cabin});}else conditions(q);};
     verifyPage();const snapshots=new Map(),visited=new Set();
-    const deadline=Date.now()+15000;let expanded=0,attempted=0;
-    for(let page=0;page<12&&Date.now()<deadline;page++){
+    const deadline=Date.now()+45000;let expanded=0,attempted=0;
+    for(let page=0;page<20&&Date.now()<deadline;page++){
      const items=core.all('.flight-item');
      for(const item of items){
       if(visited.has(item))continue;
@@ -132,13 +140,13 @@
         // viewport. Read after scrolling, including already-open products.
         item.scrollIntoView?.({block:'center',behavior:'instant'});
         for(let step=0;step<8&&Date.now()<deadline;step++){
-          await core.wait(100);verifyPage();
           const main=rowMain(item);
           if(main&&content('.plane .plane-No',main).length)break;
+          await core.wait(100);verifyPage();
         }
       }
       visited.add(item);snapshots.set(item,itemCards(item));
-      if(attempted>=40||Date.now()>=deadline)continue;
+      if(attempted>=100||Date.now()>=deadline)continue;
       verifyPage();if(core.all('.flight-seats > .seat-row.seat-row-v3',item).length)continue;
       const main=rowMain(item);if(!main)continue;
       if(item.classList?.contains('domestic')&&/中转|转机|经停|转\d+次/.test(core.text(main)))continue;
@@ -147,7 +155,7 @@
       attempted++;button.click();
       for(let step=0;step<6&&Date.now()<deadline;step++){await core.wait(100);verifyPage();if(core.all('.flight-seats > .seat-row.seat-row-v3',item).length){snapshots.set(item,itemCards(item));expanded++;break;}}
      }
-     if(attempted>=40||Date.now()>=deadline)break;
+     if(attempted>=100||Date.now()>=deadline)break;
      const last=items.at(-1);if(!last?.scrollIntoView)break;
      last.scrollIntoView({block:'end',behavior:'instant'});
      let added=false;

@@ -1,9 +1,9 @@
 (()=>{
   const cabins={economy:'Y',premium_economy:'S',business:'C',first:'F'};
   const cabinNames={economy:'经济舱',premium_economy:'超级经济舱',business:'公务舱',first:'头等舱'};
-  const mainland=new Set('SHA BJS PVG PEK PKX CAN SZX CTU TFU HGH CKG XIY WUH NKG XMN CSX TAO KMG SYX HAK CGO TNA DLC SHE HRB TSN FOC'.split(' '));
+  const mainland=new Set(globalThis.flightQueryCore.mainlandCities.flatMap(c=>[c,...globalThis.flightQueryCore.cities[c].airports]));
   const isDomestic=q=>mainland.has(q.from)&&mainland.has(q.to);
-  const airportNames={浦东:'PVG',虹桥:'SHA',成田:'NRT',羽田:'HND',首都:'PEK',大兴:'PKX',白云:'CAN',宝安:'SZX',双流:'CTU',天府:'TFU',萧山:'HGH',江北:'CKG',天河:'WUH',长水:'KMG',咸阳:'XIY',仁川:'ICN',金浦:'GMP',关西:'KIX',伊丹:'ITM',樟宜:'SIN',素万那普:'BKK',廊曼:'DMK'};
+  const airportNames=globalThis.flightQueryCore.airportAliases;
   function airportText(raw){if(new RegExp('\\b(?:'+Object.values(airportNames).join('|')+')\\b').test(raw))return raw;const matches=Array.from(raw.matchAll(new RegExp('(?:'+Object.keys(airportNames).join('|')+')(?!航空|机场大巴)','g'))).map(m=>airportNames[m[0]]);return matches.length===2||matches.length===4?raw+'\n机场代码（按可见机场名对应）：'+matches.join(' → '):raw;}
   const code=value=>typeof value==='string'&&/^[A-Z]{3}$/.test(value);
   const iso=value=>{if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const d=new Date(value+'T00:00:00Z');return Number.isFinite(+d)&&d.toISOString().slice(0,10)===value;};
@@ -13,11 +13,11 @@
   function searchUrl(provider,q,direction=q.direction||'outbound'){
     const target=leg(q,direction),config=capabilities[provider];if(!config)throw Error('不支持的官网');
     if(provider==='ctrip'){
-      const cityCodes=new Set(['SHA','TYO','BJS','SEL','OSA','LON','NYC','PAR','BKK']);
+      const cityCodes=new Set(Object.keys(globalThis.flightQueryCore.cities));
       // The official UI generated this single-city-pair route and y_s scope.
       // Airport-specific search semantics and other cabin/roundtrip routes have
       // not yet been observed, so those still use the official form.
-      if(target.tripType!=='oneway'||!cityCodes.has(target.from)||!cityCodes.has(target.to)||!['economy','premium_economy'].includes(target.cabin))return config.home;
+      if(target.tripType!=='oneway'||!cityCodes.has(target.from)||!cityCodes.has(target.to)||!['economy','premium_economy'].includes(target.cabin))return isDomestic(target)?'https://flights.ctrip.com/online/channel/domestic':config.home;
       const url=new URL('https://flights.ctrip.com/online/list/oneway-'+target.from.toLowerCase()+'-'+target.to.toLowerCase());
       for(const [key,value] of Object.entries({depdate:target.date,cabin:'y_s',adult:String(target.adults),child:'0',infant:'0'}))url.searchParams.set(key,value);
       return url.href;
@@ -25,8 +25,8 @@
     if(isDomestic(target)){
       // Observed official domestic navigation. Empty airport fields retain all
       // airports in a city; PEK is Beijing's city route in this UI.
-      if(target.tripType!=='oneway'||target.adults!==1||target.cabin!=='economy'||![target.from,target.to].every(c=>['SHA','BJS'].includes(c)))return 'https://www.ly.com/flights/home';
-      const map=c=>c==='BJS'?'PEK':c;
+      if(target.tripType!=='oneway'||target.adults!==1||target.cabin!=='economy'||![target.from,target.to].every(c=>globalThis.flightQueryCore.mainlandCities.includes(c)))return 'https://www.ly.com/flights/home';
+      const map=c=>c==='BJS'?'PEK':c==='SIA'?'XIY':c;
       const url=new URL('https://www.ly.com/flights/itinerary/oneway/'+map(target.from)+'-'+map(target.to));
       for(const [k,v] of Object.entries({date:target.date,from:target.fromLabel,to:target.toLabel,fromairport:'',toairport:'',p:'',childticket:'0,0'}))url.searchParams.set(k,v);
       return url.href;
@@ -37,7 +37,7 @@
   }
   function inspectLyUrl(raw){try{const u=new URL(raw);if(u.protocol!=='https:'||u.hostname!=='www.ly.com'||u.pathname!=='/iflight/book1.html')return null;const a=(u.searchParams.get('para')||'').split('*');if(a.length!==7||!code(a[0])||!code(a[1])||a[0]===a[1]||!iso(a[2])||!['OW','RT'].includes(a[4])||!/^[1-9]_0_0$/.test(a[5]))return null;const cabin=Object.entries(cabins).find(([,v])=>v===a[6])?.[0];if(!cabin||(a[4]==='RT'?(!iso(a[3])||a[3]<a[2]):a[3]!=='1900-01-01'))return null;return {from:a[0],to:a[1],date:a[2],returnDate:a[4]==='RT'?a[3]:undefined,tripType:a[4]==='RT'?'roundtrip':'oneway',adults:Number(a[5][0]),cabin,evidence:'official-visible-url'};}catch{return null;}}
   function inspectCtripUrl(raw){try{const u=new URL(raw),route=u.pathname.match(/^\/online\/list\/oneway-([a-z]{3})-([a-z]{3})$/);if(u.protocol!=='https:'||u.hostname!=='flights.ctrip.com'||!route||route[1]===route[2])return null;const p=u.searchParams;if(['depdate','cabin','adult','child','infant'].some(k=>p.getAll(k).length!==1)||!iso(p.get('depdate'))||p.get('cabin')!=='y_s'||!/[1-9]/.test(p.get('adult'))||!/^\d$/.test(p.get('adult'))||p.get('child')!=='0'||p.get('infant')!=='0')return null;return {from:route[1].toUpperCase(),to:route[2].toUpperCase(),date:p.get('depdate'),tripType:'oneway',adults:Number(p.get('adult')),cabinScope:['economy','premium_economy'],evidence:'official-visible-ctrip-search-url'};}catch{return null;}}
-  function inspectLyDomesticUrl(raw){try{const u=new URL(raw),m=u.pathname.match(/^\/flights\/itinerary\/oneway\/(SHA|PEK)-(SHA|PEK)$/);if(u.protocol!=='https:'||u.hostname!=='www.ly.com'||!m||m[1]===m[2])return null;const p=u.searchParams;if(!iso(p.get('date'))||p.get('fromairport')!==''||p.get('toairport')!==''||p.get('childticket')!=='0,0')return null;const code=c=>c==='PEK'?'BJS':c;return {from:code(m[1]),to:code(m[2]),date:p.get('date'),tripType:'oneway',adults:1,cabin:'economy',evidence:'official-visible-domestic-search-url'};}catch{return null;}}
+  function inspectLyDomesticUrl(raw){try{const u=new URL(raw),m=u.pathname.match(/^\/flights\/itinerary\/oneway\/([A-Z]{3})-([A-Z]{3})$/);if(u.protocol!=='https:'||u.hostname!=='www.ly.com'||!m||m[1]===m[2])return null;const p=u.searchParams;if(['date','fromairport','toairport','childticket'].some(k=>p.getAll(k).length!==1)||!iso(p.get('date'))||p.get('fromairport')!==''||p.get('toairport')!==''||p.get('childticket')!=='0,0')return null;const code=c=>c==='PEK'?'BJS':c==='XIY'?'SIA':c;if(![code(m[1]),code(m[2])].every(c=>globalThis.flightQueryCore.mainlandCities.includes(c)))return null;return {from:code(m[1]),to:code(m[2]),date:p.get('date'),tripType:'oneway',adults:1,cabin:'economy',evidence:'official-visible-domestic-search-url'};}catch{return null;}}
   const visible=e=>!!e&&e.getClientRects().length>0&&getComputedStyle(e).visibility!=='hidden'&&!e.closest?.('[aria-hidden="true"]');
   const text=e=>(e?.innerText||e?.textContent||'').trim();
   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));

@@ -25,7 +25,8 @@
       const cabin=text('.price-show .gray-style',product);
       const observedCabin=/超经|超级经济|高端经济/.test(cabin)?'premium_economy':/经济舱/.test(cabin)?'economy':/公务舱|商务舱/.test(cabin)?'business':/头等舱/.test(cabin)?'first':null;
       const raw=core.text(product),issues=[];
-      if(!/^[¥￥]\s*\d+(?:\.\d{1,2})?$/.test(price)||!observedCabin)return null;
+      if(!/^[¥￥]\s*\d+(?:\.\d{1,2})?$/.test(price))return null;
+      if(!observedCabin)issues.push('官网品牌运价未注明具体舱位，保留原文但不参与排名');
       if(/周岁|年龄|仅限|限.{0,15}(?:乘客|会员|多人)|多人特惠|学生|青年|老人|长者|新客|券后|需领券|首单|会员专享/.test(raw))issues.push('该票价有年龄、身份、人数或优惠资格限制，不参与比价');
       return {innerText:[title,route.join(' → '),depart+' → '+arrive+(offset?' +'+offset:''),'直飞',cabin,price].join('\n'),rawText:[headText,raw].join('\n').slice(0,2500),observedCabin,cabinEvidence:cabin,captureIssues:issues,evidence:'ly-domestic-visible-products; single-flight duration lane; exact product price; tax not asserted'};
     }).filter(Boolean);

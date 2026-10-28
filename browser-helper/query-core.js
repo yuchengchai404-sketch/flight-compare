@@ -8,7 +8,28 @@
     LON: { name: '伦敦', airports: ['LHR', 'LGW', 'LCY', 'STN', 'LTN', 'SEN'] },
     NYC: { name: '纽约', airports: ['JFK', 'LGA', 'EWR'] },
     PAR: { name: '巴黎', airports: ['CDG', 'ORY', 'BVA'] },
-    BKK: { name: '曼谷', airports: ['BKK', 'DMK'] }
+    BKK: { name: '曼谷', airports: ['BKK', 'DMK'] },
+    CAN: { name: '广州', airports: ['CAN'] },
+    SZX: { name: '深圳', airports: ['SZX'] },
+    CTU: { name: '成都', airports: ['CTU', 'TFU'] },
+    HGH: { name: '杭州', airports: ['HGH'] },
+    CKG: { name: '重庆', airports: ['CKG'] },
+    SIA: { name: '西安', airports: ['XIY'] },
+    WUH: { name: '武汉', airports: ['WUH'] },
+    NKG: { name: '南京', airports: ['NKG'] },
+    XMN: { name: '厦门', airports: ['XMN'] },
+    CSX: { name: '长沙', airports: ['CSX'] },
+    TAO: { name: '青岛', airports: ['TAO'] },
+    KMG: { name: '昆明', airports: ['KMG'] },
+    SYX: { name: '三亚', airports: ['SYX'] },
+    HAK: { name: '海口', airports: ['HAK'] },
+    CGO: { name: '郑州', airports: ['CGO'] },
+    TNA: { name: '济南', airports: ['TNA'] },
+    DLC: { name: '大连', airports: ['DLC'] },
+    SHE: { name: '沈阳', airports: ['SHE'] },
+    HRB: { name: '哈尔滨', airports: ['HRB'] },
+    TSN: { name: '天津', airports: ['TSN'] },
+    FOC: { name: '福州', airports: ['FOC'] }
   });
   const airports = Object.freeze({
     PVG: '上海浦东', SHA: '上海虹桥', HND: '东京羽田', NRT: '东京成田',
@@ -32,6 +53,8 @@
     SYD: '悉尼', MEL: '墨尔本', AKL: '奥克兰'
   });
   const cabins = Object.freeze(['economy', 'premium_economy', 'business', 'first']);
+  const mainlandCities = Object.freeze(['SHA','BJS','CAN','SZX','CTU','HGH','CKG','SIA','WUH','NKG','XMN','CSX','TAO','KMG','SYX','HAK','CGO','TNA','DLC','SHE','HRB','TSN','FOC']);
+  const airportAliases = Object.freeze({浦东:'PVG',虹桥:'SHA',成田:'NRT',羽田:'HND',首都:'PEK',大兴:'PKX',白云:'CAN',宝安:'SZX',双流:'CTU',天府:'TFU',萧山:'HGH',江北:'CKG',咸阳:'XIY',天河:'WUH',禄口:'NKG',高崎:'XMN',黄花:'CSX',胶东:'TAO',长水:'KMG',凤凰:'SYX',美兰:'HAK',新郑:'CGO',遥墙:'TNA',周水子:'DLC',桃仙:'SHE',太平:'HRB',滨海:'TSN',长乐:'FOC',仁川:'ICN',金浦:'GMP',关西:'KIX',伊丹:'ITM',神户:'UKB',樟宜:'SIN',希思罗:'LHR',盖特威克:'LGW',肯尼迪:'JFK',拉瓜迪亚:'LGA',纽瓦克:'EWR',戴高乐:'CDG',奥利:'ORY',素万那普:'BKK',廊曼:'DMK'});
   function validDate(value) {
     if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
     const n = Date.parse(`${value}T12:00:00Z`);
@@ -81,5 +104,5 @@
     actual = actual.toUpperCase(); expected = expected.toUpperCase();
     return actual === expected || Boolean(cities[expected]?.airports.includes(actual));
   }
-  globalThis.flightQueryCore = { normalizeQuery, queryKey, legQuery, routeMatches, routeName, validDate, airports, cities, cabins };
+  globalThis.flightQueryCore = { normalizeQuery, queryKey, legQuery, routeMatches, routeName, validDate, airports, cities, cabins, mainlandCities, airportAliases };
 })();

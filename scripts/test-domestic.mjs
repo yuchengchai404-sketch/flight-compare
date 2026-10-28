@@ -47,3 +47,9 @@ for(const label of ['超级经济舱3.2折','经济舱/商务舱','经济舱优�
  const text='FM9103 SHA → PKX 07:00 → 09:00 直飞 '+label+' ¥470';
  assert.equal(normalizeQuote({...quote,text,rawText:text,cabinEvidence:label}).eligible,false,label);
 }
+
+product.map['.price-show .gray-style']=[node('3.5折超值折扣')];
+const uncertain=ctx.flightLyDomesticAdapter.cards()[0];
+assert.ok(uncertain,'unclassified brand price must be retained, not silently lost');
+assert.equal(uncertain.observedCabin,null);
+assert.match(uncertain.captureIssues.join(),/品牌运价/);
