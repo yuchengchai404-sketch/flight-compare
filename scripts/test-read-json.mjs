@@ -10,3 +10,5 @@ console.log('PASS success, server errors, stalled connection and stalled respons
 let sent;
 await readJson('/refresh',{request:{method:'POST',headers:{'Content-Type':'application/json'},body:'{"source":"fliggy"}'},fetcher:async(_,options)=>{sent=options;return {ok:true,json:async()=>({snapshot:{}})};}});
 assert.equal(sent.method,'POST');assert.equal(sent.body,'{"source":"fliggy"}');assert.equal(sent.headers['Content-Type'],'application/json');assert.ok(sent.signal instanceof AbortSignal);
+await assert.rejects(readJson('/test',{fetcher:async()=>({ok:false,status:504,json:async()=>{throw new SyntaxError("Unexpected token '<'");}})}),/响应中断.*已有结果已保留/);
+await assert.rejects(readJson('/test',{fetcher:async()=>({ok:true,status:200,redirected:true,json:async()=>{throw new SyntaxError('HTML login page');}})}),/重新登录/);

@@ -15,6 +15,7 @@ import {resolvePlace,placeHint} from '@/lib/place-input.mjs';
 import {readJson} from '@/lib/read-json.mjs';
 import {providerProgress,restoreStep} from '@/lib/workflow.mjs';
 import {readCapturePages} from '@/lib/capture-pages.mjs';
+import {refreshProvider} from '@/lib/refresh-provider.mjs';
 
 type Query={id:string;from:string;to:string;out:string;back?:string;adults:number;cabin:string;tripType:string;fromName?:string;toName?:string;direction?:string};
 type Quote={id:string;storageId?:string;query?:Query;source:string;batch?:string;currencyReview?:any;capturedAt:string;url:string;text:string;normalized:any};
@@ -35,8 +36,8 @@ export default function Dashboard({initial}:{initial:Snapshot[]}){
   const id=query.id;setApiLoading(true);setApiError('');
   await Promise.allSettled(['fliggy','tuniu'].map(async source=>{
    try{
-    const j=await readJson('/api/fares',{timeoutMs:120000,request:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,source})}}) as any;
-    if(active.current.id===id)setApiData(old=>[...old.filter(s=>s.source!==source),j.snapshot]);
+    const snapshot=await refreshProvider(query,source,{active:()=>active.current.id===id});
+    if(snapshot&&active.current.id===id)setApiData(old=>[...old.filter(s=>s.source!==source),snapshot]);
    }catch(e){if(active.current.id===id)setApiError(old=>[old,names[source]+'：'+(e instanceof Error?e.message:'查询失败')].filter(Boolean).join('；'));}
   }));
   setApiLoading(false);
