@@ -127,10 +127,21 @@
      const items=core.all('.flight-item');
      for(const item of items){
       if(visited.has(item))continue;
+      if(item.classList?.contains('domestic')&&Date.now()<deadline){
+        // Flight numbers are lazy-rendered when a domestic card enters the
+        // viewport. Read after scrolling, including already-open products.
+        item.scrollIntoView?.({block:'center',behavior:'instant'});
+        for(let step=0;step<8&&Date.now()<deadline;step++){
+          await core.wait(100);verifyPage();
+          const main=rowMain(item);
+          if(main&&content('.plane .plane-No',main).length)break;
+        }
+      }
       visited.add(item);snapshots.set(item,itemCards(item));
       if(attempted>=40||Date.now()>=deadline)continue;
       verifyPage();if(core.all('.flight-seats > .seat-row.seat-row-v3',item).length)continue;
       const main=rowMain(item);if(!main)continue;
+      if(item.classList?.contains('domestic')&&/中转|转机|经停|转\d+次/.test(core.text(main)))continue;
       const button=one('button[u_key="flight_action_expand_all_price"]',main);
       if(!button||button.getAttribute('u_remark')!=='航班上展开/收起运价'||/收起/.test(core.text(button)))continue;
       attempted++;button.click();

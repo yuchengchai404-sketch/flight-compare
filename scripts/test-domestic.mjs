@@ -1,3 +1,4 @@
+import {normalizeQuote} from '../lib/quote-normalize.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -36,3 +37,13 @@ assert.equal(ctx.flightLyDomesticAdapter.cards().length,1);assert.match(ctx.flig
 head.innerText+=' 经停';assert.equal(ctx.flightLyDomesticAdapter.cards().length,0);head.innerText=head.innerText.replace(' 经停','');
 product.innerText+=' 限12-81周岁';assert.match(ctx.flightLyDomesticAdapter.cards()[0].captureIssues.join(),/年龄/);
 console.log('PASS domestic route separation, reverse dates, exact visible LY product price, stop and age exclusion, API split/tax/qualification guards. Live extension acceptance still required.');
+
+const quote={source:'ly',query:q,tripType:'oneway',direction:'outbound',pageMeta:{from:'SHA',to:'BJS',date:q.out,adults:1,cabin:'economy',tripType:'oneway',verified:true,currency:'CNY',cabinScope:['economy','business'],cabinEvidence:'per-card-required'},observedCabin:'economy'};
+for(const label of ['经济舱3.2折','3.2折经济舱','全价经济舱']){
+ const text='FM9103 SHA → PKX 07:00 → 09:00 直飞 '+label+' ¥470';
+ assert.equal(normalizeQuote({...quote,text,rawText:text,cabinEvidence:label}).eligible,true,label);
+}
+for(const label of ['超级经济舱3.2折','经济舱/商务舱','经济舱优惠未知']){
+ const text='FM9103 SHA → PKX 07:00 → 09:00 直飞 '+label+' ¥470';
+ assert.equal(normalizeQuote({...quote,text,rawText:text,cabinEvidence:label}).eligible,false,label);
+}

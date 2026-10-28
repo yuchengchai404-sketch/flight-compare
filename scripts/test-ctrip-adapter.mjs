@@ -154,6 +154,12 @@ const domesticItem=flights[0];domesticItem.classList={contains:v=>v==='domestic'
 domesticItem.main.domesticMap={'.flight-detail .arrive-box .airport .name':[textNode('大兴国际机场')],'.flight-detail .transfer-info-group':[textNode('')],'i.arrow-oneway':[textNode('')]};
 domesticItem.products[0].domesticMap={'.domestic-cabin-price > .price > span.price':[textNode('¥470')],'.domestic-seat-type .domestic-cabin-item':[textNode('经济舱3.2折')]};
 const domesticCard=context.flightCtripAdapter.cards()[0];assert.equal(domesticCard.observedCabin,'economy');assert.match(domesticCard.innerText,/直飞/);assert.match(domesticCard.innerText,/¥470/);
+let viewportLoads=0;
+domesticItem.main.domesticMap['.plane .plane-No']=[];
+domesticItem.scrollIntoView=()=>{viewportLoads++;domesticItem.main.domesticMap['.plane .plane-No']=[textNode('FM9103')];};
+const domesticQuery={from:'SHA',to:'BJS',out:'2027-01-01',back:'2027-01-03',adults:1,cabin:'economy',tripType:'roundtrip',direction:'outbound'};
+const loaded=await context.flightCtripAdapter.prepareCapture(domesticQuery);
+assert.ok(viewportLoads>0);assert.match(loaded.cards[0].innerText,/FM9103/);
 domesticItem.main.innerText+=' 经停';assert.doesNotMatch(context.flightCtripAdapter.cards()[0].innerText,/直飞/);
 
 console.log('PASS: Ctrip controls/calendar and observed result/product fixtures; exact fare extraction, qualification guards, bounded progressive loading, accordion snapshots, captcha/navigation abort, no booking clicks. Not a live extension import.');
