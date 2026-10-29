@@ -7,6 +7,7 @@
       if(cancelled()) return;
       try {
         const fingerprint=await probe();
+        last=fingerprint?'官网列表仍在变化，尚未完成读取':'等待官网结果加载';
         stable=fingerprint&&fingerprint===previous?stable+1:1;
         previous=fingerprint||'';
         if(previous&&stable>=3) {

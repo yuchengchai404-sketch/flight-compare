@@ -145,60 +145,45 @@ async function captureBatch(message, sender) {
   return { ok: !result.error, read: ids.length, ...result };
 }
 
-async function launchNext(run) {
+async function launchNext(run){
   if(run.tasks.some(t=>t.state==='running'||t.state==='waiting'))return;
   const task=run.tasks.find(t=>t.state==='queued');if(!task)return;
-  task.state='running';task.updatedAt=Date.now();
-  try{const tab=await chrome.tabs.create({url:task.url,active:true});task.tabId=tab.id;}
-  catch(e){task.state='waiting';task.message=e.message;}
+  task.state='running';task.updatedAt=Date.now();task.tabId=run.workerTabId;
+  try{const result=await chrome.tabs.sendMessage(run.workerTabId,{type:'auto-navigate',url:task.url,runId:run.id,taskIndex:task.index});if(!result?.ok)throw Error('查询窗口拒绝继续');}
+  catch(e){task.state='waiting';task.message='查询窗口未能继续，请重新获取报价。';}
 }
-async function autoStatus(queryIdValue) {
-  const {autoRuns={}}=await chrome.storage.local.get('autoRuns');
-  const run=autoRuns[queryIdValue];
-  if(run)for(const task of run.tasks)if(task.state==='running'&&Date.now()-task.updatedAt>180000){task.state='waiting';task.message='页面未完成采集，可能需要登录、验证或加载；请打开处理';}
-  return {run:run||null};
+async function autoStatus(id){const {autoRuns={}}=await chrome.storage.local.get('autoRuns');const run=autoRuns[id];if(run)for(const t of run.tasks)if(t.state==='running'&&Date.now()-t.updatedAt>180000){t.state='waiting';t.message='查询页面未完成，请检查登录、验证或浏览器是否允许打开查询窗口';}return {run:run||null};}
+async function startRun(m){
+ const query=core.normalizeQuery(m.query);
+ if(!/^[a-f0-9-]{36}$/i.test(m.runId||'')||!Array.isArray(m.tasks)||!m.tasks.length||m.tasks.length>6)throw Error('查询任务无效');
+ const tasks=m.tasks.map((t,index)=>{officialUrl(t.url);if(t.url.length>9000)throw Error('查询链接过长');const url=new URL(t.url),raw=JSON.parse(decodeURIComponent(url.hash.slice(5))),q=core.normalizeQuery(raw);
+ if(!url.hash.startsWith('#fcq=')||q.id!==query.id||!['outbound','return'].includes(q.direction)||raw.searchMode!=='oneway')throw Error('自动查询条件不一致');
+ url.hash='fcq='+encodeURIComponent(JSON.stringify({...q,searchMode:'oneway',autoRunId:m.runId,autoTaskIndex:index}));
+ return {index,url:url.href,label:String(t.label).slice(0,80),state:index?'queued':'running',message:index?'排队中':'等待查询窗口',updatedAt:Date.now()};});
+ return atomic(async()=>{const {autoRuns={}}=await chrome.storage.local.get('autoRuns');
+ if(autoRuns[query.id]?.id===m.runId)return {run:autoRuns[query.id]};
+ const run={id:m.runId,queryId:query.id,helperVersion:chrome.runtime.getManifest().version,startedAt:Date.now(),tasks};
+ autoRuns[query.id]=run;await chrome.storage.local.set({autoRuns:Object.fromEntries(Object.entries(autoRuns).sort((a,b)=>b[1].startedAt-a[1].startedAt).slice(0,8))});return {run};});
 }
-async function startRun(m) {
-  const query=core.normalizeQuery(m.query);
-  if(!Array.isArray(m.tasks)||!m.tasks.length||m.tasks.length>6)throw Error('查询任务数量无效');
-  const tasks=m.tasks.map(t=>{officialUrl(t.url);if(t.url.length>9000)throw Error("查询链接过长");const url=new URL(t.url);const hash=url.hash;
-    const raw=JSON.parse(decodeURIComponent(hash.slice(5)));const q=core.normalizeQuery(raw);
-    if(!hash.startsWith('#fcq=')||q.id!==query.id||!['outbound','return'].includes(q.direction)||raw.searchMode!=='oneway')throw Error('自动查询条件不一致');
-    url.hash='fcq='+encodeURIComponent(JSON.stringify({...q,searchMode:'oneway'}));
-    return {url:url.href,label:String(t.label).slice(0,80),state:'queued',message:'等待前一项完成',updatedAt:Date.now()};
-  });
-  return atomic(async()=>{
-    const {autoRuns={}}=await chrome.storage.local.get('autoRuns');
-    const old=autoRuns[query.id];if(old&&Date.now()-old.startedAt<600000&&old.tasks.some(t=>Number.isInteger(t.tabId)&&(t.state==='running'||t.state==='waiting')))return {run:old};
-    const run={id:crypto.randomUUID(),queryId:query.id,startedAt:Date.now(),tasks};
-    await launchNext(run);
-    // Retain only the latest few runs; no persistent background polling.
-    autoRuns[query.id]=run;const recent=Object.fromEntries(Object.entries(autoRuns).sort((a,b)=>b[1].startedAt-a[1].startedAt).slice(0,8));
-    await chrome.storage.local.set({autoRuns:recent});return {run};
-  });
+async function bindAuto(m,sender){
+ officialUrl(sender.url);
+ return atomic(async()=>{const {autoRuns={}}=await chrome.storage.local.get('autoRuns');const run=Object.values(autoRuns).find(r=>r.id===m.autoRunId),task=run?.tasks[m.autoTaskIndex];
+ if(!task||task.state!=='running'||(Number.isInteger(run.workerTabId)&&run.workerTabId!==sender.tab?.id))return {autoBound:false};
+ const expected=new URL(task.url),actual=new URL(sender.url);if(expected.origin!==actual.origin||expected.pathname!==actual.pathname||core.normalizeQuery(m.query).id!==run.queryId)throw Error('查询窗口与任务不一致');
+ run.workerTabId=sender.tab.id;task.tabId=sender.tab.id;await chrome.storage.local.set({autoRuns});return {autoBound:true};});
 }
-async function reportRun(m,sender) {
-  officialUrl(sender.url);
-  return atomic(async()=>{const {autoRuns={}}=await chrome.storage.local.get('autoRuns');
-    for(const run of Object.values(autoRuns))for(const task of run.tasks)if(task.tabId===sender.tab?.id){
-      if(!['waiting','running','done'].includes(m.state))throw Error('状态无效');
-      task.state=m.state;task.message=String(m.message||'').slice(0,600);task.updatedAt=Date.now();
-      // A background Ctrip tab may not render its list. Retry readiness once
-      // in the foreground; never retry authentication or a submitted batch.
-      if(m.state==='waiting'&&task.url.startsWith('https://flights.ctrip.com/')&&/^携程当前尚未显示可识别的航班搜索结果/.test(task.message)&&!task.readinessRetry){
-        task.readinessRetry=1;
-        try{await chrome.tabs.update(task.tabId,{active:true});await chrome.tabs.sendMessage(task.tabId,{type:'auto-resume'});task.state='running';task.message='正在重新等待携程列表加载';}catch(e){task.message=e.message;}
-      }
-      if(task.state==='done')await launchNext(run);
-    }
-    await chrome.storage.local.set({autoRuns});return {ok:true};});
+async function reportRun(m,sender){
+ officialUrl(sender.url);
+ return atomic(async()=>{const {autoRuns={}}=await chrome.storage.local.get('autoRuns');const run=Object.values(autoRuns).find(r=>r.id===m.autoRunId),task=run?.tasks[m.autoTaskIndex];
+ if(!task||task.tabId!==sender.tab?.id||task.state==='done')return {ok:true};
+ if(!['running','waiting','done'].includes(m.state))throw Error('状态无效');task.state=m.state;task.message=String(m.message||'').slice(0,600);task.updatedAt=Date.now();
+ if(task.state==='done')await launchNext(run);await chrome.storage.local.set({autoRuns});return {ok:true};});
 }
-
 chrome.runtime.onMessage.addListener((m, sender, reply) => {
   (async () => {
     if (!m || typeof m.type !== 'string') throw Error('请求无效');
     if(m.type==='auto-status')return reportRun(m,sender);
-    if (m.type === 'bind-query') return bindQuery(sender, m.query);
+    if (m.type === 'bind-query') {const result=await bindQuery(sender,m.query);return m.autoRunId?{...result,...await bindAuto(m,sender)}:result;}
     if (m.type === 'context') {
       officialUrl(sender.url);
       await mutations;
@@ -219,11 +204,11 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     if(m.type==='auto-start')return startRun(m);
     if(m.type==='auto-progress')return autoStatus(queryId(m.date));
     if(m.type==='auto-focus'||m.type==='auto-resume'){
-      const {run}=await autoStatus(queryId(m.date));const task=run?.tasks.find(t=>t.tabId===m.tabId);
+      const {run}=await autoStatus(queryId(m.date));const task=run?.tasks.find(t=>t.tabId===m.tabId&&t.state==='waiting');
       if(!task)throw Error('该任务已失效，请重新查询');
       await chrome.tabs.update(task.tabId,{active:true});
       if(m.type==='auto-focus')return {ok:true};
-      await chrome.tabs.sendMessage(task.tabId,{type:'auto-resume'});await reportRun({state:'running',message:'等待官网结果'}, {url:task.url,tab:{id:task.tabId}});return {ok:true};
+      await chrome.tabs.sendMessage(task.tabId,{type:'auto-resume'});await reportRun({state:'running',message:'等待官网结果',autoRunId:run.id,autoTaskIndex:task.index}, {url:task.url,tab:{id:task.tabId}});return {ok:true};
     }
     if (m.type === 'query') return { query: core.normalizeQuery(m.query), ok: true };
     if (m.type === 'pending') return { captures: await pending(m.date ? queryId(m.date) : undefined) };

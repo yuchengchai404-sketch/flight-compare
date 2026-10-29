@@ -20,6 +20,7 @@
     }
   }
   function normalize(value) { try { return core.normalizeQuery(value); } catch { return null; } }
+  function autoTag(){try{const raw=JSON.parse(decodeURIComponent(location.hash.slice(5)));return {autoRunId:raw.autoRunId,autoTaskIndex:raw.autoTaskIndex};}catch{return {};}}
   async function context() {
     let hash, local;
     try { hash = location.hash.startsWith('#fcq=') ? normalize(JSON.parse(decodeURIComponent(location.hash.slice(5)))) : null; } catch {}
@@ -27,7 +28,7 @@
     const bound = await send({ type: 'context' });
     query = hash || normalize(bound?.query) || local;
     if (!query) return null;
-    await send({ type: 'bind-query', query });
+    for(let attempt=0;attempt<6;attempt++){const tag=autoTag(),bound=await send({type:'bind-query',query,...tag});if(!tag.autoRunId||bound.autoBound)break;await new Promise(r=>setTimeout(r,250));}
     sessionStorage.setItem('flight-query', JSON.stringify(query));
     const leg = core.legQuery(query, query.direction || 'outbound');
     if (queryEl) queryEl.textContent = core.routeName(leg.from) + ' → ' + core.routeName(leg.to) + ' · ' + leg.date + ' · ' + query.adults + ' 成人';
@@ -118,12 +119,12 @@
     return captured('已读取 ' + captures.length + ' 条，已回传 ' + (result?.count || 0) + ' 条。' + reviewNote + '回平台即可查看结果' + (result?.pending ? '；还有 ' + result.pending + ' 条待同步' : '') + (preparationNote ? '。' + preparationNote : '') + (limitNote ? '。' + limitNote : ''));
   }
   let autoGeneration=0;
-  async function reportAuto(state,message){say(message);try{await send({type:'auto-status',state,message});}catch{}}
+  async function reportAuto(state,message){say(message);try{await send({type:'auto-status',state,message,...autoTag()});}catch{}}
   async function startAuto(){
     const generation=++autoGeneration;
     await globalThis.flightAutoCore.run({
       cancelled:()=>generation!==autoGeneration, wait:ms=>new Promise(r=>setTimeout(r,ms)), report:reportAuto,
-      probe:async()=>{if(busy)return '';blocked();const a=adapter();await inspect(a);const cards=(a.cards()||[]).map(n=>n.innerText||'').join('\n');if(cards)return cards;return Array.from(document.querySelectorAll('.flight-item')).filter(visible).map(n=>n.innerText).filter(t=>/[¥￥]/.test(t)&&/\d{2}:\d{2}/.test(t)).join('\n');},
+      probe:async()=>{if(busy)return '';blocked();const a=adapter();if(a?.readiness)return a.readiness(query);await inspect(a);const cards=(a.cards()||[]).map(n=>n.innerText||'').join('\n');if(cards)return cards;return Array.from(document.querySelectorAll('.flight-item')).filter(visible).map(n=>n.innerText).filter(t=>/[¥￥]/.test(t)&&/\d{2}:\d{2}/.test(t)).join('\n');},
       capture:async()=>{if(busy)return {};busy=true;try{return await capture(true);}finally{busy=false;}}
     });
   }
@@ -141,7 +142,7 @@
     host.id = 'flight-helper-manual';
     host.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:2147483647;';
     const shadow = host.attachShadow({ mode: 'open' });
-    shadow.innerHTML = '<style>:host{font:13px/1.6 sans-serif}section{width:320px;background:#173f3c;color:white;padding:16px;border-radius:10px;box-shadow:0 4px 22px #0004}button{display:block;width:100%;padding:10px;margin:8px 0;border:0;border-radius:5px;background:white;color:#173f3c;text-align:left;cursor:pointer}button.secondary{background:#dcece8}p{font-size:12px;margin:7px 0;white-space:pre-wrap}</style><section><b>机票查价助手 · 0.6.19</b><p id="query"></p><button id="capture">手动重试读取并回传</button><button class="secondary" id="fill">① 填写条件并搜索</button><p id="status" role="status">正在等待结果，稍后自动读取并回传。登录或验证码请本人完成。</p></section>';
+    shadow.innerHTML = '<style>:host{font:13px/1.6 sans-serif}section{width:320px;background:#173f3c;color:white;padding:16px;border-radius:10px;box-shadow:0 4px 22px #0004}button{display:block;width:100%;padding:10px;margin:8px 0;border:0;border-radius:5px;background:white;color:#173f3c;text-align:left;cursor:pointer}button.secondary{background:#dcece8}p{font-size:12px;margin:7px 0;white-space:pre-wrap}</style><section><b>机票查价助手 · 0.6.21</b><p id="query"></p><button id="capture">手动重试读取并回传</button><button class="secondary" id="fill">① 填写条件并搜索</button><p id="status" role="status">正在等待结果，稍后自动读取并回传。登录或验证码请本人完成。</p></section>';
     statusEl = shadow.querySelector('#status'); queryEl = shadow.querySelector('#query');
     shadow.querySelector('#fill').onclick = () => void run('fill-search');
     shadow.querySelector('#capture').onclick = () => void run('capture-now');
@@ -149,6 +150,12 @@
     context().then(q => { if (!q) queryEl.textContent = '请从比价平台打开官网入口'; else if(location.hash.startsWith('#fcq='))void startAuto().catch(e=>reportAuto('waiting',e.message)); }).catch(e => say(e.message));
   }
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
+    if(message?.type==='auto-navigate'){
+      try{const tag=autoTag(),url=new URL(message.url),raw=JSON.parse(decodeURIComponent(url.hash.slice(5)));
+       if(message.runId!==tag.autoRunId||raw.autoRunId!==tag.autoRunId||message.taskIndex!==tag.autoTaskIndex+1||raw.autoTaskIndex!==message.taskIndex||!['www.google.com','flights.ctrip.com','www.ly.com'].includes(url.hostname)||url.protocol!=='https:'||normalize(raw)?.id!==query?.id)throw Error('查询导航不匹配');
+       autoGeneration++;reply({ok:true});setTimeout(()=>location.assign(url.href),0);
+      }catch(e){reply({error:e.message});}return;
+    }
     if(message?.type==='auto-resume'){context().then(q=>{if(q)void startAuto().catch(e=>reportAuto('waiting',e.message));});reply({ok:true});return;}
     if (!['fill-search', 'capture-now'].includes(message?.type)) return;
     run(message.type).then(reply); return true;

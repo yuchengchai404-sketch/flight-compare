@@ -34,6 +34,17 @@
     throw Error('携程未显示可唯一核验的城市或机场候选，请在官网选择后重试。');
   }
   async function chooseCabin(wanted){if(cabinScope(controlValue('cabin')).includes(wanted))return;field('cabin').click();await core.wait(100);const candidates=core.all('li').filter(e=>cabinScope(core.text(e)).includes(wanted));core.unique(candidates,'携程舱位选项不唯一，请在官网选择。').click();await core.wait(100);if(!cabinScope(controlValue('cabin')).includes(wanted))throw Error('携程尚未确认所选舱位。');}
+  function readiness(q){
+    guard();
+    const meta=core.inspectCtripUrl(location.href);
+    if(!meta)return '';
+    if(!meta.cabinScope.includes(q.cabin))throw Error('携程当前舱位范围与本次查询不一致。');
+    core.verify(q,{...meta,cabin:q.cabin});
+    // Visible list readiness is separate from finalized fare/product parsing.
+    // Prices and lazily rendered flight numbers may keep changing until expansion.
+    const hasList=core.all('.flight-item').some(item=>{const main=rowMain(item);const text=main?core.text(main):'';return (text.match(/\d{1,2}:\d{2}/g)||[]).length>=2&&/[¥￥]\s*\d/.test(text);});
+    return hasList?'ctrip-list-ready:'+meta.from+'-'+meta.to+'-'+meta.date:'';
+  }
   function inspect(q){
     guard();if(!location.pathname.startsWith('/online/list/')||!core.all('.flight-item').length)throw Error('携程当前尚未显示可识别的航班搜索结果，请完成搜索后读取。');
     const urlMeta=core.inspectCtripUrl(location.href);
@@ -169,5 +180,5 @@
     // the previous accordion; never carry live DOM nodes across that change.
     return {expanded,cards:Array.from(snapshots.values()).flat(),message:'本次读取 '+snapshots.size+' 张已加载航班卡片，展开 '+expanded+' 张明细；未加载的航班未采集。'};
   }
-  globalThis.flightCtripAdapter={fillSearch,cards,inspect,prepareCapture};
+  globalThis.flightCtripAdapter={fillSearch,cards,inspect,prepareCapture,readiness};
 })();
