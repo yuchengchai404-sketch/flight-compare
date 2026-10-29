@@ -23,7 +23,7 @@ assert.equal(domesticCabins({...flight,type:'经停'},detail).length,0);
 const response=(date,from,to)=>({status:0,data:{itemList:[{adultPrice:'¥470.0',journeys:[{journeyType:'直达',segments:[{depStationCode:from,arrStationCode:to,depDateTime:date+' 10:00:00',arrDateTime:date+' 12:00:00',seatClassName:'经济舱',marketingTransportNo:'FM9103'}]}]}]}});
 const snapshot=normalizeDomesticFliggy([response(q.out,'SHA','PKX'),response(q.back,'PKX','SHA')],apiDate(q));
 assert.equal(snapshot.items[0].price,940);assert.equal(snapshot.items[0].ticketType,'split');assert.equal(apiQuotes([snapshot],q)[0].normalized.eligible,true);assert.equal(apiQuotes([snapshot],q)[0].normalized.taxIncluded,null);
-const bad=response(q.out,'SHA','PKX');bad.data.itemList[0].adultPrice='JPY470';assert.equal(normalizeDomesticFliggy([bad,response(q.back,'PKX','SHA')],q.id).items.length,0);
+const bad=response(q.out,'SHA','PKX');bad.data.itemList[0].adultPrice='JPY470';const retained=normalizeDomesticFliggy([bad,response(q.back,'PKX','SHA')],q.id);assert.equal(retained.items.length,1);assert.equal(retained.items[0].direction,'return');assert.equal(retained.items[0].ticketType,'oneway');
 const node=(innerText,map={})=>({innerText,map});
 const head=node('上海航空FM9103 07:00 虹桥机场T2 2h0m 09:00 大兴机场 ¥469起');
 head.map={'.flight-item-name':[node('上海航空FM9103')],'.f-startTime > strong':[node('07:00')],'.f-endTime > strong':[node('09:00')],'.f-startTime em':[node('虹桥机场T2')],'.f-endTime em':[node('大兴机场')],'.f-line-to':[node('2h0m')]};

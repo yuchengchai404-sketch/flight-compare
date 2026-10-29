@@ -22,5 +22,5 @@ let active=true;reads=0;
 assert.equal(await refreshProvider(query,'tuniu',{active:()=>active,read:async()=>{reads++;return start;},wait:async()=>{active=false;}}),null);assert.equal(reads,1);
 await assert.rejects(refreshProvider(query,'tuniu',{read:async()=>({pending:true,jobId:id,retryAfterMs:999999})}),/进度异常/);
 await assert.rejects(refreshProvider(query,'tuniu',{read:async()=>{throw Error('网络失败');}}),/网络失败/);
-const noFlights=await domesticJob({...base,queryLeg:async()=>[]});assert.equal(noFlights.snapshot.items.length,0);
+const noFlights=await domesticJob({...base,queryLeg:async()=>[]});assert.equal(noFlights.pending,true);clock+=13000;const returnOnly=await domesticJob({...base,jobId:noFlights.jobId});assert.equal(returnOnly.snapshot.items.length,1);assert.equal(returnOnly.snapshot.items[0].direction,'return');
 console.log('PASS: staged domestic queries preserve complete snapshots, exact query binding, rate spacing, expiry, replay, client cancellation and malformed progress.');

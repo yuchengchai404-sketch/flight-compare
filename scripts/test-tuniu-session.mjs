@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {withTuniuSession} from '../lib/tuniu-session.mjs';
+const auth={token:{accessToken:'old',refreshToken:'rotating',expiresAt:Date.now()+3600000}};
+const next={token:{accessToken:'new',refreshToken:'rotated',expiresAt:Date.now()+3600000}};
+const denied=()=>Object.assign(Error('unauthorized'),{status:401});
+let calls=[],saved=[],renewals=0;
+const deps={refresh:async()=>{renewals++;return next;},save:async a=>saved.push(a),run:async token=>{calls.push(token);if(token==='old')throw denied();return 'quotes';}};
+assert.equal(await withTuniuSession(auth,deps),'quotes');assert.deepEqual(calls,['old','new']);assert.deepEqual(saved,[next]);assert.equal(renewals,1);
+calls=[];renewals=0;await assert.rejects(withTuniuSession(auth,{...deps,run:async()=>{calls.push(1);throw denied();}}),/续期后/);assert.equal(calls.length,2);assert.equal(renewals,1);
+renewals=0;await assert.rejects(withTuniuSession(auth,{...deps,run:async()=>{throw Object.assign(Error('rate limit'),{status:429});}}),/rate limit/);assert.equal(renewals,0);
+await assert.rejects(withTuniuSession(auth,{...deps,refresh:async()=>{throw Error('途牛授权已失效，需要本人重新授权');}}),/本人重新授权/);
+console.log('PASS early token rejection renews once, rotated token saved, no quota retry, and revoked consent requires user authorization.');
