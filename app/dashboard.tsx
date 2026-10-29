@@ -17,6 +17,7 @@ import {readJson} from '@/lib/read-json.mjs';
 import {providerProgress,restoreStep} from '@/lib/workflow.mjs';
 import {readCapturePages} from '@/lib/capture-pages.mjs';
 import {refreshProvider} from '@/lib/refresh-provider.mjs';
+import {loadingRecovery} from '@/lib/browser-recovery.mjs';
 
 type Query={id:string;from:string;to:string;out:string;back?:string;adults:number;cabin:string;tripType:string;fromName?:string;toName?:string;direction?:string};
 type Quote={id:string;storageId?:string;query?:Query;source:string;batch?:string;currencyReview?:any;capturedAt:string;url:string;text:string;normalized:any};
@@ -32,6 +33,7 @@ export default function Dashboard({initial}:{initial:Snapshot[]}){
  const [apiProgress,setApiProgress]=useState<Record<string,string>>({});
  const [autoRun,setAutoRun]=useState<any>(null),[starting,setStarting]=useState(false);
  const [flowReady,setFlowReady]=useState(false);
+ const autoRecovered=useRef(new Set<string>());
  const apiKey=apiDate(query);
  const apiWarnings=apiData.filter(s=>s.warning||s.lastAttempt?.error).map(s=>names[s.source]+'：'+(s.lastAttempt?.error||s.warning)+(s.lastAttempt?'（保留的旧报价仍显示原采集时间）':'')).join('；');
  const retrySources=apiData.filter(s=>s.warning||s.lastAttempt?.error||s.status==='error').map(s=>s.source);
@@ -112,7 +114,7 @@ export default function Dashboard({initial}:{initial:Snapshot[]}){
  useEffect(()=>{
   if(version!=='0.6.21')return;
   let live=true,timer:ReturnType<typeof setTimeout>;let first=true;
-  const poll=async()=>{try{const r=await helper('auto-progress');if(!live)return;setAutoRun(r.run);
+  const poll=async()=>{try{const r=await helper('auto-progress');if(!live)return;setAutoRun(r.run);const recovery=loadingRecovery(r.run,query.id,autoRecovered.current);if(recovery){autoRecovered.current.add(recovery.key);try{await helper('auto-resume',{tabId:recovery.tabId});if(live)setMessage('官网加载稍慢，已自动唤醒查询窗口并继续。');}catch{/* Keep the existing manual attention control available. */}}
     if(r.run?.tasks?.some((t:any)=>t.state==='running'||t.state==='waiting'))timer=setTimeout(poll,4000);
     else if(r.run&&!first){await reload();if(live)setMessage('官网自动采集已结束，接口状态见下方；可查看比较结果。');}
    }catch{}first=false;};void poll();return()=>{live=false;clearTimeout(timer);};
