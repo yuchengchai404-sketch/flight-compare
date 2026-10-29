@@ -145,6 +145,13 @@ async function captureBatch(message, sender) {
   return { ok: !result.error, read: ids.length, ...result };
 }
 
+async function launchNext(run) {
+  if(run.tasks.some(t=>t.state==='running'||t.state==='waiting'))return;
+  const task=run.tasks.find(t=>t.state==='queued');if(!task)return;
+  task.state='running';task.updatedAt=Date.now();
+  try{const tab=await chrome.tabs.create({url:task.url,active:true});task.tabId=tab.id;}
+  catch(e){task.state='waiting';task.message=e.message;}
+}
 async function autoStatus(queryIdValue) {
   const {autoRuns={}}=await chrome.storage.local.get('autoRuns');
   const run=autoRuns[queryIdValue];
@@ -158,13 +165,13 @@ async function startRun(m) {
     const raw=JSON.parse(decodeURIComponent(hash.slice(5)));const q=core.normalizeQuery(raw);
     if(!hash.startsWith('#fcq=')||q.id!==query.id||!['outbound','return'].includes(q.direction)||raw.searchMode!=='oneway')throw Error('自动查询条件不一致');
     url.hash='fcq='+encodeURIComponent(JSON.stringify({...q,searchMode:'oneway'}));
-    return {url:url.href,label:String(t.label).slice(0,80),state:'running',message:'等待官网结果',updatedAt:Date.now()};
+    return {url:url.href,label:String(t.label).slice(0,80),state:'queued',message:'等待前一项完成',updatedAt:Date.now()};
   });
   return atomic(async()=>{
     const {autoRuns={}}=await chrome.storage.local.get('autoRuns');
     const old=autoRuns[query.id];if(old&&Date.now()-old.startedAt<600000&&old.tasks.some(t=>Number.isInteger(t.tabId)&&(t.state==='running'||t.state==='waiting')))return {run:old};
     const run={id:crypto.randomUUID(),queryId:query.id,startedAt:Date.now(),tasks};
-    for(const task of tasks){try{const tab=await chrome.tabs.create({url:task.url,active:true});task.tabId=tab.id;}catch(e){task.state='waiting';task.message=e.message;}}
+    await launchNext(run);
     // Retain only the latest few runs; no persistent background polling.
     autoRuns[query.id]=run;const recent=Object.fromEntries(Object.entries(autoRuns).sort((a,b)=>b[1].startedAt-a[1].startedAt).slice(0,8));
     await chrome.storage.local.set({autoRuns:recent});return {run};
@@ -176,6 +183,13 @@ async function reportRun(m,sender) {
     for(const run of Object.values(autoRuns))for(const task of run.tasks)if(task.tabId===sender.tab?.id){
       if(!['waiting','running','done'].includes(m.state))throw Error('状态无效');
       task.state=m.state;task.message=String(m.message||'').slice(0,600);task.updatedAt=Date.now();
+      // A background Ctrip tab may not render its list. Retry readiness once
+      // in the foreground; never retry authentication or a submitted batch.
+      if(m.state==='waiting'&&task.url.startsWith('https://flights.ctrip.com/')&&/^携程当前尚未显示可识别的航班搜索结果/.test(task.message)&&!task.readinessRetry){
+        task.readinessRetry=1;
+        try{await chrome.tabs.update(task.tabId,{active:true});await chrome.tabs.sendMessage(task.tabId,{type:'auto-resume'});task.state='running';task.message='正在重新等待携程列表加载';}catch(e){task.message=e.message;}
+      }
+      if(task.state==='done')await launchNext(run);
     }
     await chrome.storage.local.set({autoRuns});return {ok:true};});
 }
@@ -207,7 +221,8 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     if(m.type==='auto-focus'||m.type==='auto-resume'){
       const {run}=await autoStatus(queryId(m.date));const task=run?.tasks.find(t=>t.tabId===m.tabId);
       if(!task)throw Error('该任务已失效，请重新查询');
-      if(m.type==='auto-focus'){await chrome.tabs.update(task.tabId,{active:true});return {ok:true};}
+      await chrome.tabs.update(task.tabId,{active:true});
+      if(m.type==='auto-focus')return {ok:true};
       await chrome.tabs.sendMessage(task.tabId,{type:'auto-resume'});await reportRun({state:'running',message:'等待官网结果'}, {url:task.url,tab:{id:task.tabId}});return {ok:true};
     }
     if (m.type === 'query') return { query: core.normalizeQuery(m.query), ok: true };
