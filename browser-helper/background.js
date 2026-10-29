@@ -1,5 +1,5 @@
 importScripts('query-core.js');
-const SITE = 'https://flight-compare.example.com';
+const SITE = 'https://shanghai-tokyo-newyear.cys666.chatgpt.site';
 const core = globalThis.flightQueryCore;
 let mutations = Promise.resolve();
 const syncing = new Map();
@@ -149,7 +149,7 @@ async function launchNext(run){
   if(run.tasks.some(t=>t.state==='running'||t.state==='waiting'))return;
   const task=run.tasks.find(t=>t.state==='queued');if(!task)return;
   task.state='running';task.updatedAt=Date.now();task.tabId=run.workerTabId;
-  try{const result=await chrome.tabs.sendMessage(run.workerTabId,{type:'auto-navigate',url:task.url,runId:run.id,taskIndex:task.index});if(!result?.ok)throw Error('查询窗口拒绝继续');}
+  try{await chrome.tabs.update(run.workerTabId,{active:true});const result=await chrome.tabs.sendMessage(run.workerTabId,{type:'auto-navigate',url:task.url,runId:run.id,taskIndex:task.index});if(!result?.ok)throw Error('查询窗口拒绝继续');}
   catch(e){task.state='waiting';task.message='查询窗口未能继续，请重新获取报价。';}
 }
 async function autoStatus(id){const {autoRuns={}}=await chrome.storage.local.get('autoRuns');const run=autoRuns[id];if(run)for(const t of run.tasks)if(t.state==='running'&&Date.now()-t.updatedAt>180000){t.state='waiting';t.message='查询页面未完成，请检查登录、验证或浏览器是否允许打开查询窗口';}return {run:run||null};}
@@ -208,7 +208,13 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
       if(!task)throw Error('该任务已失效，请重新查询');
       await chrome.tabs.update(task.tabId,{active:true});
       if(m.type==='auto-focus')return {ok:true};
-      await chrome.tabs.sendMessage(task.tabId,{type:'auto-resume'});await reportRun({state:'running',message:'等待官网结果',autoRunId:run.id,autoTaskIndex:task.index}, {url:task.url,tab:{id:task.tabId}});return {ok:true};
+      // Persist running before the content script can report completion or failure.
+      // Otherwise a fast report can be overwritten by this optimistic status.
+      const sender={url:task.url,tab:{id:task.tabId}};
+      await reportRun({state:'running',message:'等待官网结果',autoRunId:run.id,autoTaskIndex:task.index},sender);
+      try{await chrome.tabs.sendMessage(task.tabId,{type:'auto-resume'});}
+      catch(e){await reportRun({state:'waiting',message:'查询窗口未响应，请打开官网检查后继续',autoRunId:run.id,autoTaskIndex:task.index},sender);throw e;}
+      return {ok:true};
     }
     if (m.type === 'query') return { query: core.normalizeQuery(m.query), ok: true };
     if (m.type === 'pending') return { captures: await pending(m.date ? queryId(m.date) : undefined) };

@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
   "name": "机票比价采集助手",
-  "version": "0.6.21",
+  "version": "0.6.22",
   "description": "按自定义条件查询官方机票页面，读取可见报价并回传个人比价平台。",
   "permissions": [
     "storage",
     "activeTab"
   ],
   "host_permissions": [
-    "https://flight-compare.example.com/*",
+    "https://shanghai-tokyo-newyear.cys666.chatgpt.site/*",
     "https://www.google.com/travel/flights*",
     "https://flights.ctrip.com/online/*",
     "https://flights.ctrip.com/international/*",
@@ -28,7 +28,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://flight-compare.example.com/*"
+        "https://shanghai-tokyo-newyear.cys666.chatgpt.site/*"
       ],
       "js": [
         "query-core.js",

@@ -142,7 +142,7 @@
     host.id = 'flight-helper-manual';
     host.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:2147483647;';
     const shadow = host.attachShadow({ mode: 'open' });
-    shadow.innerHTML = '<style>:host{font:13px/1.6 sans-serif}section{width:320px;background:#173f3c;color:white;padding:16px;border-radius:10px;box-shadow:0 4px 22px #0004}button{display:block;width:100%;padding:10px;margin:8px 0;border:0;border-radius:5px;background:white;color:#173f3c;text-align:left;cursor:pointer}button.secondary{background:#dcece8}p{font-size:12px;margin:7px 0;white-space:pre-wrap}</style><section><b>机票查价助手 · 0.6.21</b><p id="query"></p><button id="capture">手动重试读取并回传</button><button class="secondary" id="fill">① 填写条件并搜索</button><p id="status" role="status">正在等待结果，稍后自动读取并回传。登录或验证码请本人完成。</p></section>';
+    shadow.innerHTML = '<style>:host{font:13px/1.6 sans-serif}section{width:320px;background:#173f3c;color:white;padding:16px;border-radius:10px;box-shadow:0 4px 22px #0004}button{display:block;width:100%;padding:10px;margin:8px 0;border:0;border-radius:5px;background:white;color:#173f3c;text-align:left;cursor:pointer}button.secondary{background:#dcece8}p{font-size:12px;margin:7px 0;white-space:pre-wrap}</style><section><b>机票查价助手 · 0.6.22</b><p id="query"></p><button id="capture">手动重试读取并回传</button><button class="secondary" id="fill">① 填写条件并搜索</button><p id="status" role="status">正在等待结果，稍后自动读取并回传。登录或验证码请本人完成。</p></section>';
     statusEl = shadow.querySelector('#status'); queryEl = shadow.querySelector('#query');
     shadow.querySelector('#fill').onclick = () => void run('fill-search');
     shadow.querySelector('#capture').onclick = () => void run('capture-now');

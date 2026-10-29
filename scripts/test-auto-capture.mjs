@@ -12,10 +12,10 @@ let checks=0;const changing=await scenario(async()=>{if(!checks++)throw Error('�
 let n=0;assert.equal((await scenario(async()=>String(n++))).reads,0);
 assert.equal((await scenario(async()=> 'stable',{cancelled:()=>true})).reads,0);
 assert.equal((await scenario(async()=> 'stable',{capture:async()=>({read:2,pending:true})})).states.at(-1)[0],'waiting');
-let listener,id=100;const state={},tabs=[],messages=[];
-const sandbox=vm.createContext({console,URL,TextEncoder,crypto:{randomUUID},chrome:{storage:{local:{get:async keys=>Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(k=>[k,state[k]])),set:async value=>Object.assign(state,value)}},runtime:{getManifest:()=>({version:'0.6.21'}),onMessage:{addListener:f=>listener=f}},tabs:{create:async t=>{tabs.push(t);return {id:++id}},update:async()=>{},sendMessage:async(t,m)=>{messages.push(m);return {ok:true}},onRemoved:{addListener(){}}}},importScripts:p=>vm.runInContext(fs.readFileSync('browser-helper/'+p,'utf8'),sandbox)});
+let listener,id=100;const state={},tabs=[],messages=[],activations=[]; let onSend;
+const sandbox=vm.createContext({console,URL,TextEncoder,crypto:{randomUUID},chrome:{storage:{local:{get:async keys=>Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(k=>[k,state[k]])),set:async value=>Object.assign(state,value)}},runtime:{getManifest:()=>({version:'0.6.22'}),onMessage:{addListener:f=>listener=f}},tabs:{create:async t=>{tabs.push(t);return {id:++id}},update:async(t,opts)=>{activations.push({tab:t,...opts})},sendMessage:async(t,m)=>{messages.push(m);if(onSend)await onSend(t,m);return {ok:true}},onRemoved:{addListener(){}}}},importScripts:p=>vm.runInContext(fs.readFileSync('browser-helper/'+p,'utf8'),sandbox)});
 vm.runInContext(fs.readFileSync('browser-helper/background.js','utf8'),sandbox);
-const site={url:'https://flight-compare.example.com/',tab:{id:1}};
+const site={url:'https://shanghai-tokyo-newyear.cys666.chatgpt.site/',tab:{id:1}};
 const call=(m,s=site)=>new Promise(r=>listener(m,s,r));
 const q=sandbox.flightQueryCore.normalizeQuery({from:'SHA',to:'SYX',out:'2027-01-01',back:'2027-01-03',adults:1,cabin:'economy',tripType:'roundtrip',direction:'outbound',searchMode:'oneway'});
 const url='https://flights.ctrip.com/online/list/oneway-sha-syx?depdate=2027-01-01#fcq='+encodeURIComponent(JSON.stringify({...q,searchMode:"oneway"}));
@@ -32,9 +32,10 @@ assert.equal((await call({type:'bind-query',query:q,...tag(0)},{url,tab:{id:202}
 await call({type:'auto-status',state:'waiting',message:'需要验证',...tag(0)},source);
 assert.equal(messages.length,0,'authentication must pause navigation');
 assert.ok((await call({type:'auto-resume',date:q.id,tabId:999})).error);
-await call({type:'auto-resume',date:q.id,tabId:101});assert.equal(messages[0].type,'auto-resume');
+onSend=async(t,m)=>{if(m.type==='auto-resume'){assert.equal(state.autoRuns[q.id].tasks[0].state,'running');await call({type:'auto-status',state:'waiting',message:'需要验证',...tag(0)},source);}};
+await call({type:'auto-resume',date:q.id,tabId:101});assert.equal(messages[0].type,'auto-resume');assert.equal(state.autoRuns[q.id].tasks[0].state,'waiting','fast validation must not be overwritten');onSend=null;
 await call({type:'auto-status',state:'done',message:'received',...tag(0)},source);
-assert.equal(messages[1].type,'auto-navigate');assert.equal(messages[1].taskIndex,1);
+assert.deepEqual(activations.at(-1),{tab:101,active:true});assert.equal(activations.length,2,'resume and next navigation each activate the worker');assert.equal(messages[1].type,'auto-navigate');assert.equal(messages[1].taskIndex,1);
 assert.equal((await call({type:'auto-progress',date:q.id})).run.tasks[0].state,'done');
 assert.equal(tabs.length,0,'all subsequent queries reuse the same native tab');
 await call({type:'auto-status',state:'done',message:'duplicate',...tag(0)},source);assert.equal(messages.length,2,'late completion must not skip a task');
