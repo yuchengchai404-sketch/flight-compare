@@ -35,7 +35,7 @@
   }
   async function chooseCabin(wanted){if(cabinScope(controlValue('cabin')).includes(wanted))return;field('cabin').click();await core.wait(100);const candidates=core.all('li').filter(e=>cabinScope(core.text(e)).includes(wanted));core.unique(candidates,'携程舱位选项不唯一，请在官网选择。').click();await core.wait(100);if(!cabinScope(controlValue('cabin')).includes(wanted))throw Error('携程尚未确认所选舱位。');}
   function inspect(q){
-    guard();if(!location.pathname.startsWith('/online/list/')||!cards().length)throw Error('携程当前尚未显示可识别的航班搜索结果，请完成搜索后读取。');
+    guard();if(!location.pathname.startsWith('/online/list/')||!core.all('.flight-item').length)throw Error('携程当前尚未显示可识别的航班搜索结果，请完成搜索后读取。');
     const urlMeta=core.inspectCtripUrl(location.href);
     if(urlMeta&&!urlMeta.cabinScope.includes(q.cabin))throw Error('携程当前舱位范围与本次查询不一致。');
     const meta=urlMeta?core.verify(q,{...urlMeta,cabin:q.cabin,cabinEvidence:'per-card-required'}):conditions(q);

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "机票比价采集助手",
-  "version": "0.6.15",
+  "version": "0.6.18",
   "description": "按自定义条件查询官方机票页面，读取可见报价并回传个人比价平台。",
   "permissions": [
     "storage",
@@ -55,6 +55,7 @@
         "ly-adapter.js",
         "ly-domestic-adapter.js",
         "nonstop-core.js",
+        "auto-core.js",
         "source.js"
       ]
     }

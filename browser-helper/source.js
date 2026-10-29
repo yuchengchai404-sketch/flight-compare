@@ -63,7 +63,7 @@
     const result = await current.fillSearch(query);
     return say(result?.message || '已填写搜索条件，结果显示后点击读取并回传');
   }
-  async function capture() {
+  async function capture(automatic = false) {
     if (!await context()) return say('没有查询条件，请从比价平台打开官网入口');
     blocked();
     const current = adapter();
@@ -77,7 +77,7 @@
     const metadata = await inspect(current);
     // Official result adapters carry product/cabin qualifications. Free text
     // must not bypass them when the user happens to have a selection on a page.
-    const selected = location.hostname === 'www.google.com' ? window.getSelection()?.toString().trim() : '';
+    const selected = !automatic && location.hostname === 'www.google.com' ? window.getSelection()?.toString().trim() : '';
     const nodes = selected ? [{ innerText: selected }] : Array.isArray(prepared?.cards) ? prepared.cards : current.cards();
     const seen = new Set(), captures = [], batch = crypto.randomUUID(), captureLimit = 500;
     let limited = false, skippedNonstop = 0;
@@ -111,15 +111,27 @@
     // Currency policy and eligibility are decided by the receiving platform.
     // Raw adapter issues must not be reported as a final pending count.
     const reviewNote = '可比数量以平台检查结果为准。';
+    const captured = message => ({...say(message), read: captures.length, pending: !!(result?.error || result?.queued || result?.pending)});
     const preparationNote = typeof prepared?.message === 'string' ? prepared.message.slice(0, 220) : '';
-    if (result?.queued) return say('已读取 ' + captures.length + ' 条，平台打开后会自动接收。' + reviewNote + '可回平台查看结果。' + preparationNote + limitNote);
-    if (result?.error) return say('已读取 ' + captures.length + ' 条，已回传 ' + (result.count || 0) + ' 条，待处理 ' + (result.pending ?? captures.length) + ' 条。' + result.error + limitNote);
-    return say('已读取 ' + captures.length + ' 条，已回传 ' + (result?.count || 0) + ' 条。' + reviewNote + '回平台即可查看结果' + (result?.pending ? '；还有 ' + result.pending + ' 条待同步' : '') + (preparationNote ? '。' + preparationNote : '') + (limitNote ? '。' + limitNote : ''));
+    if (result?.queued) return captured('已读取 ' + captures.length + ' 条，平台打开后会自动接收。' + reviewNote + '可回平台查看结果。' + preparationNote + limitNote);
+    if (result?.error) return captured('已读取 ' + captures.length + ' 条，已回传 ' + (result.count || 0) + ' 条，待处理 ' + (result.pending ?? captures.length) + ' 条。' + result.error + limitNote);
+    return captured('已读取 ' + captures.length + ' 条，已回传 ' + (result?.count || 0) + ' 条。' + reviewNote + '回平台即可查看结果' + (result?.pending ? '；还有 ' + result.pending + ' 条待同步' : '') + (preparationNote ? '。' + preparationNote : '') + (limitNote ? '。' + limitNote : ''));
+  }
+  let autoGeneration=0;
+  async function reportAuto(state,message){say(message);try{await send({type:'auto-status',state,message});}catch{}}
+  async function startAuto(){
+    const generation=++autoGeneration;
+    await globalThis.flightAutoCore.run({
+      cancelled:()=>generation!==autoGeneration, wait:ms=>new Promise(r=>setTimeout(r,ms)), report:reportAuto,
+      probe:async()=>{if(busy)return '';blocked();const a=adapter();await inspect(a);const cards=(a.cards()||[]).map(n=>n.innerText||'').join('\n');if(cards)return cards;return Array.from(document.querySelectorAll('.flight-item')).filter(visible).map(n=>n.innerText).filter(t=>/[¥￥]/.test(t)&&/\d{2}:\d{2}/.test(t)).join('\n');},
+      capture:async()=>{if(busy)return {};busy=true;try{return await capture(true);}finally{busy=false;}}
+    });
   }
   async function run(type) {
+    autoGeneration++;
     if (busy) return { message: '上一步仍在执行，请稍候' };
     busy = true; say('正在执行…');
-    try { return type === 'fill-search' ? await fillSearch() : await capture(); }
+    try { const result=type === 'fill-search' ? await fillSearch() : await capture(); if(result?.read)await reportAuto(result.pending?'waiting':'done',result.message);return result; }
     catch (e) { say('执行失败：' + e.message); return { error: e.message }; }
     finally { busy = false; }
   }
@@ -129,14 +141,15 @@
     host.id = 'flight-helper-manual';
     host.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:2147483647;';
     const shadow = host.attachShadow({ mode: 'open' });
-    shadow.innerHTML = '<style>:host{font:13px/1.6 sans-serif}section{width:320px;background:#173f3c;color:white;padding:16px;border-radius:10px;box-shadow:0 4px 22px #0004}button{display:block;width:100%;padding:10px;margin:8px 0;border:0;border-radius:5px;background:white;color:#173f3c;text-align:left;cursor:pointer}button.secondary{background:#dcece8}p{font-size:12px;margin:7px 0;white-space:pre-wrap}</style><section><b>机票查价助手 · 0.6.15</b><p id="query"></p><button id="capture">② 读取并回传平台</button><button class="secondary" id="fill">① 填写条件并搜索</button><p id="status" role="status">结果显示后点②，平台自动接收。需要重新搜索时再点①。</p></section>';
+    shadow.innerHTML = '<style>:host{font:13px/1.6 sans-serif}section{width:320px;background:#173f3c;color:white;padding:16px;border-radius:10px;box-shadow:0 4px 22px #0004}button{display:block;width:100%;padding:10px;margin:8px 0;border:0;border-radius:5px;background:white;color:#173f3c;text-align:left;cursor:pointer}button.secondary{background:#dcece8}p{font-size:12px;margin:7px 0;white-space:pre-wrap}</style><section><b>机票查价助手 · 0.6.18</b><p id="query"></p><button id="capture">手动重试读取并回传</button><button class="secondary" id="fill">① 填写条件并搜索</button><p id="status" role="status">正在等待结果，稍后自动读取并回传。登录或验证码请本人完成。</p></section>';
     statusEl = shadow.querySelector('#status'); queryEl = shadow.querySelector('#query');
     shadow.querySelector('#fill').onclick = () => void run('fill-search');
     shadow.querySelector('#capture').onclick = () => void run('capture-now');
     document.body.append(host);
-    context().then(q => { if (!q) queryEl.textContent = '请从比价平台打开官网入口'; }).catch(e => say(e.message));
+    context().then(q => { if (!q) queryEl.textContent = '请从比价平台打开官网入口'; else if(location.hash.startsWith('#fcq='))void startAuto().catch(e=>reportAuto('waiting',e.message)); }).catch(e => say(e.message));
   }
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
+    if(message?.type==='auto-resume'){context().then(q=>{if(q)void startAuto().catch(e=>reportAuto('waiting',e.message));});reply({ok:true});return;}
     if (!['fill-search', 'capture-now'].includes(message?.type)) return;
     run(message.type).then(reply); return true;
   });

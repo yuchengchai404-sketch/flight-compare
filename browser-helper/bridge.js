@@ -72,8 +72,9 @@
     const m = event.data;
     if (m?.type === 'flight-helper-ping') { ready(); return; }
     if (m?.type === 'flight-query-context') { void send({ type: 'query', query: m.query }).catch(fail); return; }
-    if (!['flight-sync-request', 'flight-clear-pending'].includes(m?.type)) return;
+    if (!['flight-sync-request', 'flight-clear-pending','auto-start','auto-progress','auto-focus','auto-resume'].includes(m?.type)) return;
     (async () => {
+      if(m.type.startsWith('auto-'))return send({type:m.type,query:m.query,date:m.date,tasks:m.tasks,tabId:m.tabId});
       if (m.type === 'flight-clear-pending') {
         if (delivering.has(m.date)) throw Error('正在同步，请稍后清空');
         await send({ type: 'clear-pending', date: m.date });

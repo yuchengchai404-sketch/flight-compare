@@ -172,6 +172,7 @@ let viewportLoads=0;
 domesticItem.main.domesticMap['.plane .plane-No']=[];
 domesticItem.scrollIntoView=()=>{viewportLoads++;domesticItem.main.domesticMap['.plane .plane-No']=[textNode('FM9103')];};
 const domesticQuery={from:'SHA',to:'BJS',out:'2027-01-01',back:'2027-01-03',adults:1,cabin:'economy',tripType:'roundtrip',direction:'outbound'};
+assert.doesNotThrow(()=>context.flightCtripAdapter.inspect(domesticQuery),'lazy flight rows must pass readiness before prepareCapture scrolls flight details into view');
 const loaded=await context.flightCtripAdapter.prepareCapture(domesticQuery);
 assert.ok(viewportLoads>0);assert.match(loaded.cards[0].innerText,/FM9103/);
 domesticItem.main.innerText+=' 经停';assert.doesNotMatch(context.flightCtripAdapter.cards()[0].innerText,/直飞/);
