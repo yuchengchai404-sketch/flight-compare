@@ -152,7 +152,7 @@ async function launchNext(run){
   try{await chrome.tabs.update(run.workerTabId,{active:true});const result=await chrome.tabs.sendMessage(run.workerTabId,{type:'auto-navigate',url:task.url,runId:run.id,taskIndex:task.index});if(!result?.ok)throw Error('查询窗口拒绝继续');}
   catch(e){task.state='waiting';task.message='查询窗口未能继续，请重新获取报价。';}
 }
-async function autoStatus(id){const {autoRuns={}}=await chrome.storage.local.get('autoRuns');const run=autoRuns[id];if(run)for(const t of run.tasks)if(t.state==='running'&&Date.now()-t.updatedAt>180000){t.state='waiting';t.message='查询页面未完成，请检查登录、验证或浏览器是否允许打开查询窗口';}return {run:run||null};}
+async function autoStatus(id){const {autoRuns={}}=await chrome.storage.local.get('autoRuns');const run=autoRuns[id];if(run)for(const t of run.tasks)if(t.state==='running'&&Date.now()-t.updatedAt>180000){t.state='waiting';t.message='官网长时间未响应，加载状态尚未确认；请打开查询窗口检查';}return {run:run||null};}
 async function startRun(m){
  const query=core.normalizeQuery(m.query);
  if(!/^[a-f0-9-]{36}$/i.test(m.runId||'')||!Array.isArray(m.tasks)||!m.tasks.length||m.tasks.length>6)throw Error('查询任务无效');

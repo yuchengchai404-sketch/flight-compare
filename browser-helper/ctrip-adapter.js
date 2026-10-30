@@ -34,12 +34,29 @@
     throw Error('携程未显示可唯一核验的城市或机场候选，请在官网选择后重试。');
   }
   async function chooseCabin(wanted){if(cabinScope(controlValue('cabin')).includes(wanted))return;field('cabin').click();await core.wait(100);const candidates=core.all('li').filter(e=>cabinScope(core.text(e)).includes(wanted));core.unique(candidates,'携程舱位选项不唯一，请在官网选择。').click();await core.wait(100);if(!cabinScope(controlValue('cabin')).includes(wanted))throw Error('携程尚未确认所选舱位。');}
+  function dismissRefreshNotice(){
+    // Only acknowledge this non-binding stale-price notice. Never generalize
+    // to login, challenge, agreement or booking dialogs.
+    for(const button of core.all('button')){
+      if(core.text(button).trim()!=='我知道了')continue;
+      let parent=button.parentElement;
+      for(let depth=0;parent&&depth<4;depth++,parent=parent.parentElement){
+        const text=core.text(parent);
+        if(text.length>400)break;
+        if(/航班可能有变，为您重新查询/.test(text)&&/机票价格非固定/.test(text)){
+          button.click();return true;
+        }
+      }
+    }
+    return false;
+  }
   function readiness(q){
     guard();
     const meta=core.inspectCtripUrl(location.href);
     if(!meta)return '';
     if(!meta.cabinScope.includes(q.cabin))throw Error('携程当前舱位范围与本次查询不一致。');
     core.verify(q,{...meta,cabin:q.cabin});
+    if(dismissRefreshNotice())return '';
     // Visible list readiness is separate from finalized fare/product parsing.
     // Prices and lazily rendered flight numbers may keep changing until expansion.
     const hasList=core.all('.flight-item').some(item=>{const main=rowMain(item);const text=main?core.text(main):'';return (text.match(/\d{1,2}:\d{2}/g)||[]).length>=2&&/[¥￥]\s*\d/.test(text);});

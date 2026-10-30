@@ -1,6 +1,6 @@
 (() => {
   // Bounded readiness checks; no search submission or challenge interaction.
-  async function run({probe,capture,report,cancelled,wait,maxChecks=40}) {
+  async function run({probe,capture,report,cancelled,wait,recoverLoading,maxChecks=40}) {
     let previous='',stable=0,last='等待官网结果加载';
     for(let i=0;i<maxChecks;i++) {
       await wait(3000);
@@ -22,6 +22,9 @@
         last=e.message||'官网结果尚未就绪';previous='';stable=0;
         if(/登录|验证|captcha|sign.?in|log.?in/i.test(last)) {await report('waiting',last);return;}
       }
+    }
+    if(!cancelled()&&last==='等待官网结果加载'&&recoverLoading){
+      if(await recoverLoading())return;
     }
     if(!cancelled())await report('waiting',last+'；请打开官网处理后继续');
   }

@@ -8,6 +8,13 @@ async function scenario(probe,extra={}){let reads=0,states=[];await auto.run({pr
 assert.equal((await scenario(async()=> 'stable')).reads,1);
 assert.equal((await scenario(async()=> {throw Error('请登录并完成验证码')})).reads,0);
 assert.equal((await scenario(async()=> '')).states.at(-1)[0],'waiting');
+let recoveries=0;
+await scenario(async()=>'',{recoverLoading:async()=>{recoveries++;return true;}});
+assert.equal(recoveries,1);
+await scenario(async()=>{throw Error('请登录并完成验证码')},{recoverLoading:async()=>{recoveries++;return true;}});
+assert.equal(recoveries,1,'login/challenges must never trigger a reload');
+await scenario(async()=>{throw Error('查询条件不一致')},{recoverLoading:async()=>{recoveries++;return true;}});
+assert.equal(recoveries,1,'only absent results, not validation errors, can reload');
 let checks=0;const changing=await scenario(async()=>{if(!checks++)throw Error('早期列表未显示');return String(checks++);});assert.doesNotMatch(changing.states.at(-1)[1],/早期/,'successful readiness checks must replace stale initial errors');
 let n=0;assert.equal((await scenario(async()=>String(n++))).reads,0);
 assert.equal((await scenario(async()=> 'stable',{cancelled:()=>true})).reads,0);

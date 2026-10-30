@@ -27,6 +27,7 @@ for(const key of ['from','to'])fields[key].click=()=>{activeCity=fields[key];};
 const cityRows=['SHA','TYO'].map(code=>({code,click(){activeCity.value=code;cityClicks++;}}));
 const airportRows=[{code:'SHA',click(){activeCity.value='上海虹桥(SHA)';airportClicks++;}}];
 const buttons=[{innerText:'\uE000 搜索',click(){searches++;}}];
+let notices=[],noticeClicks=0;
 let calendarOpen=false,activeDate='date',monthStart=2026*12+9,dayDisabled=false;
 const calendar={kind:'calendar'},panels=[{offset:0},{offset:1}],clickedDates=[];
 for(const key of ['date','back']){fields[key].readOnly=true;fields[key].click=()=>{activeDate=key;calendarOpen=true;};}
@@ -35,6 +36,7 @@ const core=globalThis.flightProviderSearchCore;
 const mock={...core,
   blocked(){if(blocked)throw Error('人工安全验证');},wait:async()=>{},
   all(selector,root){
+    if(selector==='button')return notices;
     if(selector==='.flight-item')return flights;
     if(root?.domesticMap?.[selector])return root.domesticMap[selector];
     if(root?.kind==='flight'&&selector==='.flight-box')return [root.main];
@@ -175,6 +177,11 @@ const domesticQuery={from:'SHA',to:'BJS',out:'2027-01-01',back:'2027-01-03',adul
 assert.doesNotThrow(()=>context.flightCtripAdapter.inspect(domesticQuery),'lazy flight rows must pass readiness before prepareCapture scrolls flight details into view');
 assert.ok(context.flightCtripAdapter.readiness(domesticQuery),'visible fare row is ready even before lazy flight number loads');
 const firstReady=context.flightCtripAdapter.readiness(domesticQuery);domesticItem.main.innerText=domesticItem.main.innerText.replace('1860','1950');assert.equal(context.flightCtripAdapter.readiness(domesticQuery),firstReady,'changing prices do not restart readiness');
+notices=[{innerText:'我知道了',parentElement:{innerText:'温馨提示 您终于回来了～航班可能有变，为您重新查询 机票价格非固定，由航司/供应商提供，会实时变动。'},click(){noticeClicks++;}}];
+assert.equal(context.flightCtripAdapter.readiness(domesticQuery),'');assert.equal(noticeClicks,1);
+notices[0].parentElement.innerText='请阅读用户协议并完成登录验证';
+assert.ok(context.flightCtripAdapter.readiness(domesticQuery));assert.equal(noticeClicks,1,'unrelated notices must never be accepted');
+notices=[];
 const loaded=await context.flightCtripAdapter.prepareCapture(domesticQuery);
 assert.ok(viewportLoads>0);assert.match(loaded.cards[0].innerText,/FM9103/);
 domesticItem.main.innerText+=' 经停';assert.doesNotMatch(context.flightCtripAdapter.cards()[0].innerText,/直飞/);

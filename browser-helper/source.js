@@ -124,6 +124,16 @@
     const generation=++autoGeneration;
     await globalThis.flightAutoCore.run({
       cancelled:()=>generation!==autoGeneration, wait:ms=>new Promise(r=>setTimeout(r,ms)), report:reportAuto,
+      recoverLoading:async()=>{
+        const tag=autoTag();
+        if(location.hostname!=='flights.ctrip.com'||!tag.autoRunId)return false;
+        blocked();
+        const key='flight-load-recovery:'+tag.autoRunId+':'+tag.autoTaskIndex;
+        if(sessionStorage.getItem(key))return false;
+        sessionStorage.setItem(key,'1');
+        await reportAuto('running','官网结果未加载，自动重新加载一次');
+        location.reload();return true;
+      },
       probe:async()=>{if(busy)return '';blocked();const a=adapter();if(a?.readiness)return a.readiness(query);await inspect(a);const cards=(a.cards()||[]).map(n=>n.innerText||'').join('\n');if(cards)return cards;return Array.from(document.querySelectorAll('.flight-item')).filter(visible).map(n=>n.innerText).filter(t=>/[¥￥]/.test(t)&&/\d{2}:\d{2}/.test(t)).join('\n');},
       capture:async()=>{if(busy)return {};busy=true;try{return await capture(true);}finally{busy=false;}}
     });
@@ -142,7 +152,7 @@
     host.id = 'flight-helper-manual';
     host.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:2147483647;';
     const shadow = host.attachShadow({ mode: 'open' });
-    shadow.innerHTML = '<style>:host{font:13px/1.6 sans-serif}section{width:320px;background:#173f3c;color:white;padding:16px;border-radius:10px;box-shadow:0 4px 22px #0004}button{display:block;width:100%;padding:10px;margin:8px 0;border:0;border-radius:5px;background:white;color:#173f3c;text-align:left;cursor:pointer}button.secondary{background:#dcece8}p{font-size:12px;margin:7px 0;white-space:pre-wrap}</style><section><b>机票查价助手 · 0.6.22</b><p id="query"></p><button id="capture">手动重试读取并回传</button><button class="secondary" id="fill">① 填写条件并搜索</button><p id="status" role="status">正在等待结果，稍后自动读取并回传。登录或验证码请本人完成。</p></section>';
+    shadow.innerHTML = '<style>:host{font:13px/1.6 sans-serif}section{width:320px;background:#173f3c;color:white;padding:16px;border-radius:10px;box-shadow:0 4px 22px #0004}button{display:block;width:100%;padding:10px;margin:8px 0;border:0;border-radius:5px;background:white;color:#173f3c;text-align:left;cursor:pointer}button.secondary{background:#dcece8}p{font-size:12px;margin:7px 0;white-space:pre-wrap}</style><section><b>机票查价助手 · 0.6.23</b><p id="query"></p><button id="capture">手动重试读取并回传</button><button class="secondary" id="fill">① 填写条件并搜索</button><p id="status" role="status">正在等待结果，稍后自动读取并回传。登录或验证码请本人完成。</p></section>';
     statusEl = shadow.querySelector('#status'); queryEl = shadow.querySelector('#query');
     shadow.querySelector('#fill').onclick = () => void run('fill-search');
     shadow.querySelector('#capture').onclick = () => void run('capture-now');
