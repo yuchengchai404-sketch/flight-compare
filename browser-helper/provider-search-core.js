@@ -11,7 +11,14 @@
   function leg(q,direction='outbound'){validate(q);if(!['outbound','return','roundtrip'].includes(direction)||direction!=='outbound'&&!iso(q.back))throw Error('查询方向或回程日期无效');const back=direction==='return';const from=back?q.to:q.from,to=back?q.from:q.to;return {from,to,date:back?q.back:q.out,returnDate:direction==='roundtrip'?q.back:undefined,tripType:direction==='roundtrip'?'roundtrip':'oneway',direction:direction==='roundtrip'?'outbound':direction,adults:q.adults,cabin:q.cabin,fromLabel:(back?q.toLabel||q.toName:q.fromLabel||q.fromName)||globalThis.flightQueryCore?.routeName(from)||from,toLabel:(back?q.fromLabel||q.fromName:q.toLabel||q.toName)||globalThis.flightQueryCore?.routeName(to)||to};}
   const capabilities={ctrip:{name:'携程',home:'https://flights.ctrip.com/online/channel/international',automaticLinks:true,roundtrip:'needs-visible-complete-total',status:'needs-live-test',note:'城市间经济/超经单程可带条件打开；其他查询由官网表单完成，报价仍需核验。'},ly:{name:'同程',home:'https://www.ly.com/iflight/',automaticLinks:true,roundtrip:'needs-visible-complete-total',status:'needs-live-test',note:'已按官方公开导航格式生成查询链接，实际结果读取待实测。'}};
   function searchUrl(provider,q,direction=q.direction||'outbound'){
-    const target=leg(q,direction),config=capabilities[provider];if(!config)throw Error('不支持的官网');
+    const target=leg(q,direction),config=capabilities[provider];
+    if(provider==='fliggy'){
+      if(!isDomestic(target)||target.tripType!=='oneway'||target.adults!==1||target.cabin!=='economy')throw Error('飞猪官网备用查询暂支持国内1成人经济舱单程。');
+      const url=new URL('https://sjipiao.fliggy.com/flight_search_result.htm');
+      for(const [k,v] of Object.entries({tripType:'0',depCity:target.from,arrCity:target.to,depDate:target.date,depCityName:target.fromLabel,arrCityName:target.toLabel}))url.searchParams.set(k,v);
+      return url.href;
+    }
+    if(!config)throw Error('不支持的官网');
     if(provider==='ctrip'){
       const cityCodes=new Set(Object.keys(globalThis.flightQueryCore.cities));
       // The official UI generated this single-city-pair route and y_s scope.
@@ -38,6 +45,13 @@
   function inspectLyUrl(raw){try{const u=new URL(raw);if(u.protocol!=='https:'||u.hostname!=='www.ly.com'||u.pathname!=='/iflight/book1.html')return null;const a=(u.searchParams.get('para')||'').split('*');if(a.length!==7||!code(a[0])||!code(a[1])||a[0]===a[1]||!iso(a[2])||!['OW','RT'].includes(a[4])||!/^[1-9]_0_0$/.test(a[5]))return null;const cabin=Object.entries(cabins).find(([,v])=>v===a[6])?.[0];if(!cabin||(a[4]==='RT'?(!iso(a[3])||a[3]<a[2]):a[3]!=='1900-01-01'))return null;return {from:a[0],to:a[1],date:a[2],returnDate:a[4]==='RT'?a[3]:undefined,tripType:a[4]==='RT'?'roundtrip':'oneway',adults:Number(a[5][0]),cabin,evidence:'official-visible-url'};}catch{return null;}}
   function inspectCtripUrl(raw){try{const u=new URL(raw),route=u.pathname.match(/^\/online\/list\/oneway-([a-z]{3})-([a-z]{3})$/);if(u.protocol!=='https:'||u.hostname!=='flights.ctrip.com'||!route||route[1]===route[2])return null;const p=u.searchParams;if(['depdate','cabin','adult','child','infant'].some(k=>p.getAll(k).length!==1)||!iso(p.get('depdate'))||p.get('cabin')!=='y_s'||!/[1-9]/.test(p.get('adult'))||!/^\d$/.test(p.get('adult'))||p.get('child')!=='0'||p.get('infant')!=='0')return null;return {from:route[1].toUpperCase(),to:route[2].toUpperCase(),date:p.get('depdate'),tripType:'oneway',adults:Number(p.get('adult')),cabinScope:['economy','premium_economy'],evidence:'official-visible-ctrip-search-url'};}catch{return null;}}
   function inspectLyDomesticUrl(raw){try{const u=new URL(raw),m=u.pathname.match(/^\/flights\/itinerary\/oneway\/([A-Z]{3})-([A-Z]{3})$/);if(u.protocol!=='https:'||u.hostname!=='www.ly.com'||!m||m[1]===m[2])return null;const p=u.searchParams;if(['date','fromairport','toairport','childticket'].some(k=>p.getAll(k).length!==1)||!iso(p.get('date'))||p.get('fromairport')!==''||p.get('toairport')!==''||p.get('childticket')!=='0,0')return null;const code=c=>c==='PEK'?'BJS':c==='XIY'?'SIA':c;if(![code(m[1]),code(m[2])].every(c=>globalThis.flightQueryCore.mainlandCities.includes(c)))return null;return {from:code(m[1]),to:code(m[2]),date:p.get('date'),tripType:'oneway',adults:1,cabin:'economy',evidence:'official-visible-domestic-search-url'};}catch{return null;}}
+  function inspectFliggyUrl(raw){try{
+    const u=new URL(raw),p=u.searchParams;
+    if(u.protocol!=='https:'||u.hostname!=='sjipiao.fliggy.com'||u.pathname!=='/flight_search_result.htm'||['tripType','depCity','arrCity','depDate'].some(k=>p.getAll(k).length!==1)||p.get('tripType')!=='0'||!iso(p.get('depDate')))return null;
+    const meta={from:p.get('depCity'),to:p.get('arrCity'),date:p.get('depDate'),tripType:'oneway',adults:1,cabin:'economy'};
+    if(!code(meta.from)||!code(meta.to)||meta.from===meta.to||!isDomestic(meta))return null;
+    return {...meta,evidence:'official-fliggy-domestic-url; per-person economy products required'};
+  }catch{return null;}}
   const visible=e=>!!e&&e.getClientRects().length>0&&getComputedStyle(e).visibility!=='hidden'&&!e.closest?.('[aria-hidden="true"]');
   const text=e=>(e?.innerText||e?.textContent||'').trim();
   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -67,5 +81,5 @@
   }
   function currency(root=document){const s=text(root.body||root);if(/(?:人民币|\bCNY\b|\bRMB\b)/i.test(s)&&!/(?:日元|\bJPY\b)/i.test(s))return 'CNY';throw Error('页面尚未明确显示人民币币种，请切换人民币后读取。');}
   function verify(q,meta){const target=leg(q,meta.tripType==='roundtrip'?'roundtrip':q.direction||(meta.from===q.to?'return':'outbound'));if(['from','to','date','tripType','adults','cabin'].some(key=>meta[key]!==target[key])||target.returnDate!==meta.returnDate)throw Error('官网当前路线、日期、乘客或舱位与平台条件不一致，请先填写搜索。');return {...meta,direction:target.direction};}
-  globalThis.flightProviderSearchCore={capabilities,searchUrl,inspectLyUrl,inspectLyDomesticUrl,isDomestic,inspectCtripUrl,validate,leg,cabinNames,airportText,visible,text,all,field,unique,blocked,setValue,normal,sameCity,chooseCity,dateValue,selected,tripType,chooseTrip,priceCards,currency,verify,wait};
+  globalThis.flightProviderSearchCore={capabilities,searchUrl,inspectFliggyUrl,inspectLyUrl,inspectLyDomesticUrl,isDomestic,inspectCtripUrl,validate,leg,cabinNames,airportText,visible,text,all,field,unique,blocked,setValue,normal,sameCity,chooseCity,dateValue,selected,tripType,chooseTrip,priceCards,currency,verify,wait};
 })();

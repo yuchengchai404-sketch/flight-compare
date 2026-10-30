@@ -1,5 +1,5 @@
 importScripts('query-core.js');
-const SITE = 'https://shanghai-tokyo-newyear.cys666.chatgpt.site';
+const SITE = 'https://flight-compare.example.com';
 const core = globalThis.flightQueryCore;
 let mutations = Promise.resolve();
 const syncing = new Map();
@@ -16,6 +16,7 @@ function officialUrl(value) {
   if (u.protocol !== 'https:' || u.username || u.password) throw Error('只支持官方 HTTPS 机票查询页');
   let keep = [];
   if (u.hostname === 'www.google.com' && /^\/travel\/flights(?:\/|$)/.test(u.pathname)) keep = ['tfs', 'tfu', 'hl', 'curr', 'q'];
+  else if(u.hostname==='sjipiao.fliggy.com'&&u.pathname==='/flight_search_result.htm') keep=['tripType','depCity','arrCity','depDate','depCityName','arrCityName'];
   else if (u.hostname === 'flights.ctrip.com' && /^\/(?:online|international)(?:\/|$)/.test(u.pathname)) keep = ['dcity', 'acity', 'ddate', 'rdate', 'depdate', 'departdate', 'returndate', 'triptype', 'adult', 'adults', 'child', 'infant', 'cabin'];
   else if ((u.hostname === 'www.ly.com' && /^\/(?:iflight|flights)(?:\/|$)/.test(u.pathname)) || (u.hostname === 'flight.ly.com' && /^\/(?:intl|international|search)(?:\/|$)/.test(u.pathname))) keep = ['fromairport','toairport','childticket','p','para', 'departureCity', 'arrivalCity', 'from', 'to', 'date', 'returnDate', 'tripType', 'adults', 'cabin'];
   else throw Error('当前页面不是支持的官方机票查询页');
@@ -155,7 +156,7 @@ async function launchNext(run){
 async function autoStatus(id){const {autoRuns={}}=await chrome.storage.local.get('autoRuns');const run=autoRuns[id];if(run)for(const t of run.tasks)if(t.state==='running'&&Date.now()-t.updatedAt>180000){t.state='waiting';t.message='官网长时间未响应，加载状态尚未确认；请打开查询窗口检查';}return {run:run||null};}
 async function startRun(m){
  const query=core.normalizeQuery(m.query);
- if(!/^[a-f0-9-]{36}$/i.test(m.runId||'')||!Array.isArray(m.tasks)||!m.tasks.length||m.tasks.length>6)throw Error('查询任务无效');
+ if(!/^[a-f0-9-]{36}$/i.test(m.runId||'')||!Array.isArray(m.tasks)||!m.tasks.length||m.tasks.length>8)throw Error('查询任务无效');
  const tasks=m.tasks.map((t,index)=>{officialUrl(t.url);if(t.url.length>9000)throw Error('查询链接过长');const url=new URL(t.url),raw=JSON.parse(decodeURIComponent(url.hash.slice(5))),q=core.normalizeQuery(raw);
  if(!url.hash.startsWith('#fcq=')||q.id!==query.id||!['outbound','return'].includes(q.direction)||raw.searchMode!=='oneway')throw Error('自动查询条件不一致');
  url.hash='fcq='+encodeURIComponent(JSON.stringify({...q,searchMode:'oneway',autoRunId:m.runId,autoTaskIndex:index}));

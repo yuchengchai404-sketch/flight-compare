@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
   "name": "机票比价采集助手",
-  "version": "0.6.23",
+  "version": "0.6.24",
   "description": "按自定义条件查询官方机票页面，读取可见报价并回传个人比价平台。",
   "permissions": [
     "storage",
     "activeTab"
   ],
   "host_permissions": [
-    "https://shanghai-tokyo-newyear.cys666.chatgpt.site/*",
+    "https://flight-compare.example.com/*",
     "https://www.google.com/travel/flights*",
     "https://flights.ctrip.com/online/*",
     "https://flights.ctrip.com/international/*",
@@ -16,7 +16,8 @@
     "https://flight.ly.com/intl/*",
     "https://flight.ly.com/international/*",
     "https://flight.ly.com/search/*",
-    "https://www.ly.com/flights/*"
+    "https://www.ly.com/flights/*",
+    "https://sjipiao.fliggy.com/flight_search_result.htm*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -28,7 +29,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://shanghai-tokyo-newyear.cys666.chatgpt.site/*"
+        "https://flight-compare.example.com/*"
       ],
       "js": [
         "query-core.js",
@@ -44,7 +45,8 @@
         "https://flight.ly.com/intl/*",
         "https://flight.ly.com/international/*",
         "https://flight.ly.com/search/*",
-        "https://www.ly.com/flights/*"
+        "https://www.ly.com/flights/*",
+        "https://sjipiao.fliggy.com/flight_search_result.htm*"
       ],
       "js": [
         "query-core.js",
@@ -54,6 +56,7 @@
         "ctrip-adapter.js",
         "ly-adapter.js",
         "ly-domestic-adapter.js",
+        "fliggy-adapter.js",
         "nonstop-core.js",
         "auto-core.js",
         "source.js"

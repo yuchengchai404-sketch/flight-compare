@@ -4,8 +4,8 @@
   const core = globalThis.flightQueryCore;
   let query = null, busy = false, statusEl, queryEl;
   const visible = e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden';
-  const adapter = () => location.hostname === 'www.google.com' ? globalThis.flightGoogleAdapter : location.hostname === 'flights.ctrip.com' ? globalThis.flightCtripAdapter : ['www.ly.com', 'flight.ly.com'].includes(location.hostname) ? (location.pathname.startsWith('/flights/')?globalThis.flightLyDomesticAdapter:globalThis.flightLyAdapter) : null;
-  const supported = () => location.hostname === 'www.google.com' ? /^\/travel\/flights(?:\/|$)/.test(location.pathname) : location.hostname === 'flights.ctrip.com' ? /^\/(?:online|international)(?:\/|$)/.test(location.pathname) : location.hostname === 'www.ly.com' ? /^\/(?:iflight|flights)(?:\/|$)/.test(location.pathname) : location.hostname === 'flight.ly.com' ? /^\/(?:intl|international|search)(?:\/|$)/.test(location.pathname) : false;
+  const adapter = () => location.hostname === 'www.google.com' ? globalThis.flightGoogleAdapter : location.hostname === 'flights.ctrip.com' ? globalThis.flightCtripAdapter : ['www.ly.com', 'flight.ly.com'].includes(location.hostname) ? (location.pathname.startsWith('/flights/')?globalThis.flightLyDomesticAdapter:globalThis.flightLyAdapter) : location.hostname === 'sjipiao.fliggy.com' ? globalThis.flightFliggyAdapter : null;
+  const supported = () => location.hostname === 'www.google.com' ? /^\/travel\/flights(?:\/|$)/.test(location.pathname) : location.hostname === 'flights.ctrip.com' ? /^\/(?:online|international)(?:\/|$)/.test(location.pathname) : location.hostname === 'www.ly.com' ? /^\/(?:iflight|flights)(?:\/|$)/.test(location.pathname) : location.hostname === 'flight.ly.com' ? /^\/(?:intl|international|search)(?:\/|$)/.test(location.pathname) : location.hostname === 'sjipiao.fliggy.com' && location.pathname === '/flight_search_result.htm';
   if (!supported()) return;
   function say(message) { if (statusEl) statusEl.textContent = message; return { message }; }
   async function send(message) {
@@ -152,7 +152,7 @@
     host.id = 'flight-helper-manual';
     host.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:2147483647;';
     const shadow = host.attachShadow({ mode: 'open' });
-    shadow.innerHTML = '<style>:host{font:13px/1.6 sans-serif}section{width:320px;background:#173f3c;color:white;padding:16px;border-radius:10px;box-shadow:0 4px 22px #0004}button{display:block;width:100%;padding:10px;margin:8px 0;border:0;border-radius:5px;background:white;color:#173f3c;text-align:left;cursor:pointer}button.secondary{background:#dcece8}p{font-size:12px;margin:7px 0;white-space:pre-wrap}</style><section><b>机票查价助手 · 0.6.23</b><p id="query"></p><button id="capture">手动重试读取并回传</button><button class="secondary" id="fill">① 填写条件并搜索</button><p id="status" role="status">正在等待结果，稍后自动读取并回传。登录或验证码请本人完成。</p></section>';
+    shadow.innerHTML = '<style>:host{font:13px/1.6 sans-serif}section{width:320px;background:#173f3c;color:white;padding:16px;border-radius:10px;box-shadow:0 4px 22px #0004}button{display:block;width:100%;padding:10px;margin:8px 0;border:0;border-radius:5px;background:white;color:#173f3c;text-align:left;cursor:pointer}button.secondary{background:#dcece8}p{font-size:12px;margin:7px 0;white-space:pre-wrap}</style><section><b>机票查价助手 · 0.6.24</b><p id="query"></p><button id="capture">手动重试读取并回传</button><button class="secondary" id="fill">① 填写条件并搜索</button><p id="status" role="status">正在等待结果，稍后自动读取并回传。登录或验证码请本人完成。</p></section>';
     statusEl = shadow.querySelector('#status'); queryEl = shadow.querySelector('#query');
     shadow.querySelector('#fill').onclick = () => void run('fill-search');
     shadow.querySelector('#capture').onclick = () => void run('capture-now');
@@ -162,7 +162,7 @@
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if(message?.type==='auto-navigate'){
       try{const tag=autoTag(),url=new URL(message.url),raw=JSON.parse(decodeURIComponent(url.hash.slice(5)));
-       if(message.runId!==tag.autoRunId||raw.autoRunId!==tag.autoRunId||message.taskIndex!==tag.autoTaskIndex+1||raw.autoTaskIndex!==message.taskIndex||!['www.google.com','flights.ctrip.com','www.ly.com'].includes(url.hostname)||url.protocol!=='https:'||normalize(raw)?.id!==query?.id)throw Error('查询导航不匹配');
+       if(message.runId!==tag.autoRunId||raw.autoRunId!==tag.autoRunId||message.taskIndex!==tag.autoTaskIndex+1||raw.autoTaskIndex!==message.taskIndex||!['www.google.com','flights.ctrip.com','www.ly.com','sjipiao.fliggy.com'].includes(url.hostname)||url.protocol!=='https:'||normalize(raw)?.id!==query?.id)throw Error('查询导航不匹配');
        autoGeneration++;reply({ok:true});setTimeout(()=>location.assign(url.href),0);
       }catch(e){reply({error:e.message});}return;
     }
